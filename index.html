@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ListoAPP — Configuratore Listino e Promo</title>
+  <meta name="description" content="Configuratore di listini e preventivi con promo in tempo reale. PWA installabile, funziona offline.">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdnjs.cloudflare.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https:;
+    font-src 'self' data:;
+    connect-src 'self' https://raw.githubusercontent.com;
+    frame-src 'self' data: blob:;
+    worker-src 'self' blob:;
+    manifest-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+  <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ListoAPP">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div id="update-banner" class="banner hidden" role="status" aria-live="polite"></div>
+
+  <header class="app-header">
+    <div class="row">
+      <span class="brand">
+        <img src="icon.svg" alt="" aria-hidden="true">
+        <span>ListoAPP</span>
+      </span>
+      <span class="spacer"></span>
+      <span class="meta" id="header-meta"></span>
+      <a class="meta" href="admin.html" title="Pannello amministratore">Admin</a>
+    </div>
+  </header>
+
+  <main>
+    <nav class="tabs" role="tablist" aria-label="Sezioni">
+      <button type="button" class="tab-btn" role="tab" data-tab="listino" aria-selected="true">Listino</button>
+      <button type="button" class="tab-btn" role="tab" data-tab="preventivo" aria-selected="false">Preventivo</button>
+      <button type="button" class="tab-btn" role="tab" data-tab="promo" aria-selected="false">Promo</button>
+      <button type="button" class="tab-btn" role="tab" data-tab="aiuto" aria-selected="false">Aiuto</button>
+    </nav>
+
+    <!-- LISTINO -->
+    <section class="panel" id="panel-listino" data-active="true" role="tabpanel">
+      <div class="card">
+        <h2>Listino prezzi</h2>
+        <p class="muted">Carica un file Excel/CSV (per articoli) o un PDF (visualizzatore). Resta sul dispositivo, anche offline.</p>
+        <div id="listino-empty">
+          <label class="dropzone" id="listino-drop" tabindex="0" role="button" aria-label="Carica listino">
+            <strong>Trascina qui un file</strong>
+            <span>oppure tocca per selezionare — supportati .xlsx, .csv, .pdf</span>
+            <input type="file" id="listino-file" accept=".xlsx,.xls,.csv,.tsv,.pdf,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          </label>
+        </div>
+        <div id="listino-filled" style="display:none">
+          <div id="listino-info"></div>
+          <h3>Mappatura colonne</h3>
+          <div id="listino-mapping" class="admin-form"></div>
+          <h3>Anteprima</h3>
+          <div class="preview" id="listino-preview"></div>
+          <div class="row-flex" style="margin-top:12px">
+            <button type="button" id="listino-view">Apri viewer (PDF)</button>
+            <button type="button" id="listino-remove" class="danger">Rimuovi listino</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREVENTIVO -->
+    <section class="panel" id="panel-preventivo" role="tabpanel">
+      <div class="card">
+        <h2>Preventivo</h2>
+        <div class="grid-2">
+          <div>
+            <label for="quote-customer">Cliente</label>
+            <input type="text" id="quote-customer" placeholder="Nome cliente / riferimento">
+          </div>
+          <div>
+            <label for="quote-global-discount">Sconto globale (%)</label>
+            <input type="number" id="quote-global-discount" min="0" max="100" step="0.5" value="0">
+          </div>
+        </div>
+
+        <h3>Catalogo</h3>
+        <div class="search-row">
+          <input type="search" id="catalog-search" placeholder="Cerca per codice o descrizione…" autocomplete="off">
+        </div>
+        <div id="catalog-results"></div>
+
+        <h3>Voci preventivo</h3>
+        <div id="quote-empty" class="empty">Nessuna voce. Cerca un articolo e premi "Aggiungi", oppure aggiungi una voce manuale.</div>
+        <div id="quote-tablewrap" class="table-wrap" style="display:none">
+          <table class="data" id="quote-table">
+            <thead>
+              <tr>
+                <th>Codice</th>
+                <th>Descrizione</th>
+                <th class="num">Prezzo</th>
+                <th class="num">Q.tà</th>
+                <th class="num">Sconto %</th>
+                <th class="num">Subtot.</th>
+                <th aria-label="Azioni"></th>
+              </tr>
+            </thead>
+            <tbody id="quote-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="totals">
+          <div><span class="label">Articoli:</span><span class="value" id="total-count">0</span></div>
+          <div><span class="label">Subtot.:</span><span class="value" id="total-sub">€ 0,00</span></div>
+          <div><span class="label">Sconti riga:</span><span class="value" id="total-rowdisc">€ 0,00</span></div>
+          <div><span class="label">Sconto globale:</span><span class="value" id="total-globaldisc">€ 0,00</span></div>
+          <div><span class="label">Totale:</span><span class="value grand" id="total-grand">€ 0,00</span></div>
+        </div>
+
+        <h3>Note</h3>
+        <textarea id="quote-notes" rows="3" placeholder="Note interne, condizioni, validità…"></textarea>
+
+        <div class="row-flex" style="margin-top:12px">
+          <button type="button" id="quote-add-manual">+ Voce manuale</button>
+          <button type="button" id="quote-export-pdf" class="primary">Esporta PDF</button>
+          <button type="button" id="quote-export-text">Copia testo (WhatsApp)</button>
+          <span class="spacer" style="flex:1"></span>
+          <button type="button" id="quote-clear" class="ghost">Svuota</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROMO -->
+    <section class="panel" id="panel-promo" role="tabpanel">
+      <div class="card">
+        <h2>Promo attive</h2>
+        <p class="muted">Le promo remote sono pubblicate dall'admin; quelle locali (📱) restano solo su questo dispositivo.</p>
+        <div class="row-flex" style="margin-bottom:8px">
+          <button type="button" id="promo-refresh">Aggiorna</button>
+          <button type="button" id="promo-import">Importa promo da file</button>
+          <input type="file" id="promo-import-file" accept=".json,application/json,application/pdf,image/*" style="display:none">
+        </div>
+        <div id="promo-list" class="promo-grid"></div>
+      </div>
+    </section>
+
+    <!-- AIUTO -->
+    <section class="panel" id="panel-aiuto" role="tabpanel">
+      <div class="card help">
+        <h2>Come si usa</h2>
+        <h3>1. Listino</h3>
+        <p>Carica un file Excel/CSV o un PDF. I dati restano nel browser (IndexedDB). Per i file tabellari, scegli quali colonne sono <strong>codice</strong>, <strong>descrizione</strong> e <strong>prezzo</strong>.</p>
+        <h3>2. Preventivo</h3>
+        <p>Cerca un articolo, premi <strong>Aggiungi</strong>, modifica quantità e sconto. Esporta il preventivo come PDF o copia il testo per inviarlo su WhatsApp/email.</p>
+        <h3>3. Promo</h3>
+        <p>La sezione mostra in automatico le promo attive (data di validità nel range corrente). Aggiornamento ogni 60 secondi mentre la pagina è aperta. Puoi anche importare promo locali da un file JSON o da un singolo allegato.</p>
+        <h3>4. Installazione</h3>
+        <ul>
+          <li><strong>iPhone (Safari)</strong>: tocca <kbd>Condividi</kbd> &rarr; <kbd>Aggiungi alla schermata Home</kbd>.</li>
+          <li><strong>Android (Chrome)</strong>: menu &rarr; <kbd>Aggiungi a schermata Home</kbd>.</li>
+          <li><strong>Desktop (Chrome/Edge)</strong>: icona <kbd>Installa</kbd> nella barra degli indirizzi.</li>
+        </ul>
+        <h3>5. Privacy</h3>
+        <p>Tutti i dati (listini, preventivi, promo locali) restano sul tuo dispositivo. Non vengono inviati a server.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>ListoAPP · PWA · costruita con vanilla JS, IndexedDB e service worker</span>
+  </footer>
+
+  <!-- Modal viewer (PDF / immagini / form) -->
+  <div class="modal-backdrop" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <header>
+        <h3 id="modal-title">Dettaglio</h3>
+        <button type="button" id="modal-close" class="ghost" aria-label="Chiudi">✕</button>
+      </header>
+      <div class="body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="assets/app.js" defer></script>
+</body>
+</html>

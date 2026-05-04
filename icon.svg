@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ListoAPP">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" ry="96" fill="url(#bg)"/>
+  <g transform="translate(96 104)">
+    <rect x="0" y="0" width="320" height="304" rx="28" ry="28" fill="#111827" stroke="#374151" stroke-width="6"/>
+    <rect x="28" y="40" width="160" height="22" rx="11" fill="url(#accent)"/>
+    <rect x="28" y="84" width="220" height="14" rx="7" fill="#4b5563"/>
+    <rect x="28" y="112" width="180" height="14" rx="7" fill="#4b5563"/>
+    <rect x="28" y="140" width="240" height="14" rx="7" fill="#4b5563"/>
+    <rect x="28" y="180" width="264" height="2" fill="#374151"/>
+    <g font-family="-apple-system, system-ui, Segoe UI, Roboto, sans-serif" font-weight="700" fill="#f9fafb">
+      <text x="28" y="232" font-size="26">€</text>
+      <text x="64" y="232" font-size="26">1.250,00</text>
+    </g>
+    <circle cx="262" cy="260" r="22" fill="url(#accent)"/>
+    <path d="M252 260 l8 8 l14 -16" stroke="#0b1220" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>

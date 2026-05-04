@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ListoAPP — Admin</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob:;
+    font-src 'self' data:;
+    connect-src 'self' https://api.github.com https://raw.githubusercontent.com;
+    frame-src 'self';
+    worker-src 'self' blob:;
+    manifest-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+  <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fb" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="row">
+      <span class="brand">
+        <img src="icon.svg" alt="" aria-hidden="true">
+        <span>ListoAPP · Admin</span>
+      </span>
+      <span class="spacer"></span>
+      <a class="meta" href="index.html">↩ App utente</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Configurazione GitHub</h2>
+      <p class="muted">Le credenziali restano nel browser (IndexedDB). Il PAT non viene mai re-iniettato nei campi al ricarico.</p>
+      <div class="admin-form">
+        <div>
+          <label for="cfg-owner">Owner / username</label>
+          <input type="text" id="cfg-owner" placeholder="pezzaliapp">
+        </div>
+        <div>
+          <label for="cfg-repo">Repo</label>
+          <input type="text" id="cfg-repo" placeholder="ListoAPP">
+        </div>
+        <div>
+          <label for="cfg-branch">Branch</label>
+          <input type="text" id="cfg-branch" placeholder="main">
+        </div>
+        <div>
+          <label for="cfg-promo-path">Path promo.json</label>
+          <input type="text" id="cfg-promo-path" placeholder="promo/promo.json">
+        </div>
+        <div>
+          <label for="cfg-version-path">Path version.json</label>
+          <input type="text" id="cfg-version-path" placeholder="version.json">
+        </div>
+        <div>
+          <label for="cfg-token">Personal Access Token (scope: repo)</label>
+          <input type="password" id="cfg-token" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="full row-flex">
+          <button type="button" id="cfg-save" class="primary">Salva configurazione</button>
+          <button type="button" id="cfg-test">Test connessione</button>
+          <button type="button" id="cfg-clear-token" class="danger">Elimina token</button>
+        </div>
+        <div class="full">
+          <div class="token-status" id="save-status">In attesa…</div>
+          <div class="token-status" id="test-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Promo</h2>
+      <div class="row-flex">
+        <button type="button" id="promo-load" class="primary">Carica da GitHub</button>
+        <button type="button" id="promo-add">+ Aggiungi promo</button>
+        <button type="button" id="promo-import">Importa JSON locale</button>
+        <input type="file" id="promo-import-file" accept=".json,application/json" style="display:none">
+        <button type="button" id="promo-export">Esporta JSON</button>
+        <span class="spacer" style="flex:1"></span>
+        <label class="row-flex" style="gap:6px">
+          <input type="checkbox" id="publish-bump">
+          <span class="muted">bump version.json</span>
+        </label>
+        <button type="button" id="promo-publish" class="primary">Pubblica</button>
+      </div>
+      <div class="token-status" id="load-status"></div>
+      <div class="token-status" id="publish-status"></div>
+      <div id="promo-edit-list" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Versione app</h2>
+      <p class="muted">Aggiorna <code>version.json</code> per forzare il banner "Nuova versione" sui dispositivi degli utenti.</p>
+      <button type="button" id="version-bump-now">Bump version.json adesso</button>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <span>ListoAPP · pannello amministratore</span>
+  </footer>
+
+  <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="assets/admin.js" defer></script>
+</body>
+</html>
