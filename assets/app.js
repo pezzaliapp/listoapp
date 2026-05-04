@@ -99,6 +99,33 @@
     return (prefix || 'id_') + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   }
 
+  // Estrae tutti i numeri di pagina da una stringa tipo "61, 67" o "10".
+  // Ritorna un array di stringhe (es: ["61","67"]). Vuoto se nessun numero.
+  function pageTokens(v) {
+    return String(v == null ? '' : v).match(/\d+/g) || [];
+  }
+
+  // Cerca la colonna "pagina" in una riga grezza dell'Excel con sinonimi flessibili.
+  // Match case-insensitive sui nomi delle colonne, restituisce il valore raw.
+  const PAGE_COLUMN_NEEDLES = ['pagine', 'pagina', 'pag', 'pdf', 'page'];
+  function rawPageValue(row) {
+    if (!row || typeof row !== 'object') return '';
+    const keys = Object.keys(row);
+    for (const needle of PAGE_COLUMN_NEEDLES) {
+      const k = keys.find((c) => String(c).toLowerCase().trim() === needle);
+      if (k && row[k] != null && row[k] !== '') return row[k];
+    }
+    // fallback: contains-match (es. "Pagine PDF")
+    for (const k of keys) {
+      const lc = String(k).toLowerCase();
+      if (PAGE_COLUMN_NEEDLES.some((n) => lc.includes(n))) {
+        if (row[k] != null && row[k] !== '') return row[k];
+      }
+    }
+    return '';
+  }
+  function pageTokensOfRow(row) { return pageTokens(rawPageValue(row)); }
+
   // ────────────────────────────────────────────────
   // 3. INDEXEDDB
   // ────────────────────────────────────────────────
@@ -277,9 +304,17 @@
   // ────────────────────────────────────────────────
   const KEY_LISTINO_META = 'listino_meta';
   const KEY_LISTINO_BLOB = 'listino_blob';
+  // PDF abbinato al listino tabellare (separato da KEY_LISTINO_BLOB che tiene il file
+  // originale qualunque sia: xlsx/csv o pdf). Schema: {name, type, blob:ArrayBuffer, savedAt}.
+  const KEY_LISTINO_PDF = 'listino_pdf';
 
   // Stato in memoria del listino corrente
   let listino = null; // {kind: 'tabular'|'pdf', fileName, columns:[], rows:[], mapping:{code,name,price}}
+
+  // Filtri/paginazione del listino full
+  let listinoFilter = { q: '', page: '' };
+  let listinoPage = 1;
+  const LISTINO_PAGE_SIZE = 50;
 
   async function loadListinoFromIDB() {
     const meta = await idbGet(KEY_LISTINO_META);
@@ -292,6 +327,10 @@
     await idbDel(KEY_LISTINO_META);
     await idbDel(KEY_LISTINO_BLOB);
     listino = null;
+    listinoPage = 1;
+    listinoFilter = { q: '', page: '' };
+    const search = $('#listino-search'); if (search) search.value = '';
+    const pageSel = $('#pageFilter'); if (pageSel) pageSel.value = '';
     renderListino();
     renderPreventivoCatalog();
     showToast('Listino rimosso.', 'success');
@@ -448,7 +487,7 @@
             meta.mapping = meta.mapping || {};
             meta.mapping[key] = sel.value || null;
             await idbSet(KEY_LISTINO_META, meta);
-            renderListinoPreview();
+            renderListinoFull();
             renderPreventivoCatalog();
           });
           wrap.appendChild(lbl);
@@ -457,44 +496,98 @@
         });
       }
     }
-    renderListinoPreview();
+    populatePageFilter();
+    renderListinoFull();
   }
 
-  function renderListinoPreview() {
-    const out = $('#listino-preview');
-    if (!out) return;
-    out.innerHTML = '';
-    if (!listino || listino.kind !== 'tabular') return;
-    const head = document.createElement('div');
-    head.className = 'row head';
-    ['Codice', 'Descrizione', 'Prezzo', 'Colonna'].forEach((t) => {
-      const c = document.createElement('div');
-      c.textContent = t;
-      head.appendChild(c);
+  // Filtra le righe correnti del listino in base a search + page filter.
+  function filteredListinoRows() {
+    if (!listino || listino.kind !== 'tabular') return [];
+    const q = (listinoFilter.q || '').trim().toLowerCase();
+    const pageFilter = listinoFilter.page || '';
+    return listino.rows.filter((r) => {
+      if (q) {
+        const code = codeOf(r, listino.mapping).toLowerCase();
+        const name = nameOf(r, listino.mapping).toLowerCase();
+        if (!code.includes(q) && !name.includes(q)) return false;
+      }
+      if (pageFilter && !pageTokensOfRow(r).includes(pageFilter)) return false;
+      return true;
     });
-    out.appendChild(head);
-    const sample = listino.rows.slice(0, 8);
-    sample.forEach((r) => {
-      const row = document.createElement('div');
-      row.className = 'row';
-      const c1 = document.createElement('div'); c1.textContent = codeOf(r, listino.mapping);
-      const c2 = document.createElement('div'); c2.textContent = nameOf(r, listino.mapping);
-      const c3 = document.createElement('div'); c3.className = 'price'; c3.textContent = formatCurrency(priceOf(r, listino.mapping));
-      const c4 = document.createElement('div'); c4.className = 'price muted';
-      c4.textContent = listino.mapping ? Object.keys(listino.mapping).filter((k) => listino.mapping[k]).length + '/3 mappate' : '';
-      row.appendChild(c1); row.appendChild(c2); row.appendChild(c3); row.appendChild(c4);
-      out.appendChild(row);
-    });
-    if (listino.rows.length > sample.length) {
-      const more = document.createElement('div');
-      more.className = 'row';
-      const c = document.createElement('div');
-      c.textContent = '… ' + (listino.rows.length - sample.length) + ' righe non mostrate';
-      c.style.gridColumn = '1 / -1';
-      c.style.color = 'var(--text-muted)';
-      more.appendChild(c);
-      out.appendChild(more);
+  }
+
+  // Popola il <select id="pageFilter"> con l'unione ordinata dei numeri di pagina.
+  function populatePageFilter() {
+    const sel = $('#pageFilter');
+    if (!sel) return;
+    const previousValue = sel.value;
+    const opts = ['<option value="">Tutte le pagine</option>'];
+    if (listino && listino.kind === 'tabular') {
+      const set = new Set();
+      for (const r of listino.rows) for (const p of pageTokensOfRow(r)) set.add(p);
+      const sorted = Array.from(set).sort((a, b) => Number(a) - Number(b));
+      for (const p of sorted) opts.push('<option value="' + escapeHTML(p) + '">Pag. ' + escapeHTML(p) + '</option>');
     }
+    sel.innerHTML = opts.join('');
+    // ripristina la selezione se ancora valida
+    if (previousValue && Array.from(sel.options).some((o) => o.value === previousValue)) {
+      sel.value = previousValue;
+    }
+  }
+
+  // Render della tabella full degli articoli con paginazione.
+  function renderListinoFull() {
+    const tbody = $('#listino-tbody');
+    const count = $('#listino-count');
+    const pagerInfo = $('#listino-pager-info');
+    const wrap = $('#listino-tablewrap');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!listino || listino.kind !== 'tabular') {
+      if (wrap) wrap.style.display = 'none';
+      if (count) count.textContent = '';
+      if (pagerInfo) pagerInfo.textContent = '—';
+      return;
+    }
+    if (wrap) wrap.style.display = '';
+    const filtered = filteredListinoRows();
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / LISTINO_PAGE_SIZE));
+    if (listinoPage > totalPages) listinoPage = totalPages;
+    if (listinoPage < 1) listinoPage = 1;
+    const start = (listinoPage - 1) * LISTINO_PAGE_SIZE;
+    const slice = filtered.slice(start, start + LISTINO_PAGE_SIZE);
+
+    for (const r of slice) {
+      const tr = document.createElement('tr');
+      const tdCode = document.createElement('td'); tdCode.textContent = codeOf(r, listino.mapping); tr.appendChild(tdCode);
+      const tdName = document.createElement('td'); tdName.textContent = nameOf(r, listino.mapping); tr.appendChild(tdName);
+      const tdPrice = document.createElement('td'); tdPrice.className = 'num';
+      tdPrice.textContent = formatCurrency(priceOf(r, listino.mapping));
+      tr.appendChild(tdPrice);
+      const tdPage = document.createElement('td');
+      const tokens = pageTokensOfRow(r);
+      for (const n of tokens) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pageBtn';
+        btn.dataset.page = n;
+        btn.textContent = 'Pag. ' + n;
+        tdPage.appendChild(btn);
+      }
+      tr.appendChild(tdPage);
+      tbody.appendChild(tr);
+    }
+
+    if (count) {
+      const totRows = listino.rows.length;
+      count.textContent = total === totRows
+        ? totRows + ' articoli'
+        : total + ' di ' + totRows + ' articoli';
+    }
+    if (pagerInfo) pagerInfo.textContent = 'Pagina ' + listinoPage + '/' + totalPages;
+    const prev = $('#listino-prev'); if (prev) prev.disabled = (listinoPage <= 1);
+    const next = $('#listino-next'); if (next) next.disabled = (listinoPage >= totalPages);
   }
 
   async function viewListinoPDF() {
@@ -1244,6 +1337,140 @@
   }
 
   // ────────────────────────────────────────────────
+  // 9b. PDF VIEWER (canvas overlay) + collegamento Excel↔PDF
+  // ────────────────────────────────────────────────
+  const PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  let pdfDoc = null;
+  let currentPdfPage = 1;
+  let pdfName = 'Listino PDF';
+  let _pdfLoading = null;
+
+  async function ensurePdf() {
+    if (pdfDoc) return pdfDoc;
+    if (_pdfLoading) return _pdfLoading;
+    const saved = await idbGet(KEY_LISTINO_PDF);
+    if (!saved) {
+      showToast('Carica prima il PDF del listino dalla scheda "Listino".', 'warn');
+      return null;
+    }
+    if (!window.pdfjsLib) {
+      showToast('Viewer PDF non disponibile (pdf.js non caricato). Apri l\'app online almeno una volta.', 'error', { ttl: 6000 });
+      return null;
+    }
+    _pdfLoading = (async () => {
+      try {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(saved.blob) }).promise;
+        pdfDoc = doc;
+        pdfName = saved.name || 'Listino PDF';
+        const titleEl = $('#pdfTitle'); if (titleEl) titleEl.textContent = pdfName;
+        const totalEl = $('#pdfPageTotal'); if (totalEl) totalEl.textContent = '/ ' + doc.numPages;
+        return doc;
+      } finally { _pdfLoading = null; }
+    })();
+    return _pdfLoading;
+  }
+
+  async function renderPdfPage(n) {
+    const doc = await ensurePdf();
+    if (!doc) return;
+    currentPdfPage = Math.min(Math.max(1, Number(n) || 1), doc.numPages);
+    const page = await doc.getPage(currentPdfPage);
+    const wrap = $('#pdfCanvasWrap');
+    const canvas = $('#pdfCanvas');
+    if (!wrap || !canvas) return;
+    const wrapW = Math.max(320, wrap.clientWidth - 24);
+    const base = page.getViewport({ scale: 1 });
+    const scale = wrapW / base.width;
+    const viewport = page.getViewport({ scale });
+    const ctx = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const inp = $('#pdfPageInput'); if (inp) inp.value = String(currentPdfPage);
+    wrap.scrollTop = 0;
+  }
+
+  async function openPdfAtPage(n) {
+    const overlay = $('#pdfViewer');
+    if (!overlay) return;
+    overlay.classList.remove('hide');
+    overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    await renderPdfPage(n);
+  }
+
+  function closePdfViewer() {
+    const overlay = $('#pdfViewer');
+    if (!overlay) return;
+    overlay.classList.add('hide');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function bindPdfViewerUI() {
+    const close = $('#pdfClose'); if (close) close.addEventListener('click', closePdfViewer);
+    const prev = $('#pdfPrev'); if (prev) prev.addEventListener('click', () => renderPdfPage(currentPdfPage - 1));
+    const next = $('#pdfNext'); if (next) next.addEventListener('click', () => renderPdfPage(currentPdfPage + 1));
+    const inp = $('#pdfPageInput'); if (inp) inp.addEventListener('change', (e) => renderPdfPage(e.target.value));
+    document.addEventListener('keydown', (e) => {
+      const overlay = $('#pdfViewer');
+      if (!overlay || overlay.classList.contains('hide')) return;
+      if (e.key === 'Escape') { e.preventDefault(); closePdfViewer(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); renderPdfPage(currentPdfPage - 1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); renderPdfPage(currentPdfPage + 1); }
+    });
+    const onResize = debounce(() => {
+      const overlay = $('#pdfViewer');
+      if (overlay && !overlay.classList.contains('hide') && pdfDoc) renderPdfPage(currentPdfPage);
+    }, 150);
+    window.addEventListener('resize', onResize);
+  }
+
+  async function refreshPdfStatus() {
+    const el = $('#pdfStatus');
+    const clearBtn = $('#pdfClearBtn');
+    const saved = await idbGet(KEY_LISTINO_PDF);
+    if (saved) {
+      pdfName = saved.name || 'Listino PDF';
+      if (el) {
+        el.textContent = 'PDF caricato: ' + saved.name + ' — tocca "Pag. N" su un articolo per aprirlo.';
+        el.classList.add('ok');
+      }
+      if (clearBtn) clearBtn.hidden = false;
+    } else {
+      if (el) { el.textContent = 'Nessun PDF caricato.'; el.classList.remove('ok'); }
+      if (clearBtn) clearBtn.hidden = true;
+    }
+  }
+
+  async function handlePdfFile(file) {
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      await idbSet(KEY_LISTINO_PDF, {
+        name: file.name,
+        type: file.type || 'application/pdf',
+        blob: buf,
+        savedAt: Date.now()
+      });
+      pdfDoc = null; // forza il reload alla prossima apertura
+      await refreshPdfStatus();
+      showToast('PDF caricato: ' + file.name + '.', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Caricamento PDF fallito: ' + (err.message || err), 'error');
+    }
+  }
+
+  async function clearPdf() {
+    await idbDel(KEY_LISTINO_PDF);
+    pdfDoc = null;
+    await refreshPdfStatus();
+    showToast('PDF rimosso.', 'success');
+  }
+
+  // ────────────────────────────────────────────────
   // 10. BOOTSTRAP
   // ────────────────────────────────────────────────
   function bindTabs() {
@@ -1280,10 +1507,58 @@
     const removeBtn = $('#listino-remove');
     if (removeBtn) removeBtn.addEventListener('click', clearListino);
     const viewBtn = $('#listino-view');
-    if (viewBtn) viewBtn.addEventListener('click', () => {
+    if (viewBtn) viewBtn.addEventListener('click', async () => {
       if (!listino) return;
-      if (listino.kind === 'pdf') viewListinoPDF();
-      else { showToast('Anteprima visibile in basso nella scheda Listino.', 'success'); }
+      if (listino.kind === 'pdf') { viewListinoPDF(); return; }
+      // listino tabellare: apri il PDF abbinato (KEY_LISTINO_PDF) nel viewer canvas
+      const saved = await idbGet(KEY_LISTINO_PDF);
+      if (!saved) { showToast('Carica prima il PDF abbinato.', 'warn'); return; }
+      openPdfAtPage(1);
+    });
+
+    // Upload PDF dedicato (separato dal dropzone)
+    const pdfBtn = $('#pdfUploadBtn');
+    const pdfInp = $('#pdfFile');
+    if (pdfBtn && pdfInp) {
+      pdfBtn.addEventListener('click', () => pdfInp.click());
+      pdfInp.addEventListener('change', () => {
+        const f = pdfInp.files && pdfInp.files[0];
+        if (f) handlePdfFile(f);
+        pdfInp.value = '';
+      });
+    }
+    const pdfClearBtn = $('#pdfClearBtn');
+    if (pdfClearBtn) pdfClearBtn.addEventListener('click', clearPdf);
+
+    // Filtri tabella listino
+    const search = $('#listino-search');
+    if (search) {
+      const handler = debounce(() => {
+        listinoFilter.q = search.value || '';
+        listinoPage = 1;
+        renderListinoFull();
+      }, 80);
+      search.addEventListener('input', handler);
+    }
+    const pageSel = $('#pageFilter');
+    if (pageSel) pageSel.addEventListener('change', () => {
+      listinoFilter.page = pageSel.value || '';
+      listinoPage = 1;
+      renderListinoFull();
+    });
+
+    // Pager
+    const prev = $('#listino-prev');
+    if (prev) prev.addEventListener('click', () => { listinoPage = Math.max(1, listinoPage - 1); renderListinoFull(); });
+    const next = $('#listino-next');
+    if (next) next.addEventListener('click', () => { listinoPage = listinoPage + 1; renderListinoFull(); });
+
+    // Click delegation per i bottoni "Pag. N" nelle righe della tabella listino.
+    const tbody = $('#listino-tbody');
+    if (tbody) tbody.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-page]');
+      if (!btn) return;
+      openPdfAtPage(Number(btn.dataset.page));
     });
   }
 
@@ -1339,12 +1614,14 @@
     bindCatalogUI();
     bindPromoUI();
     bindModalUI();
+    bindPdfViewerUI();
     bindQuoteEvents();
     loadQuote();
     renderQuote();
     try { await loadListinoFromIDB(); } catch (e) { console.warn('IDB listino load failed:', e); }
     renderListino();
     renderPreventivoCatalog();
+    try { await refreshPdfStatus(); } catch (e) { console.warn('PDF status refresh failed:', e); }
     try { await loadPromoCaches(); } catch (e) { console.warn('promo cache load failed:', e); }
     renderPromo();
     registerSW();
