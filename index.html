@@ -7,13 +7,13 @@
   <meta name="description" content="Configuratore di listini e preventivi con promo in tempo reale. PWA installabile, funziona offline.">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://cdnjs.cloudflare.com;
+    script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;
     style-src 'self' 'unsafe-inline';
     img-src 'self' data: blob: https:;
     font-src 'self' data:;
-    connect-src 'self' https://raw.githubusercontent.com;
+    connect-src 'self' https://raw.githubusercontent.com https://cdn.jsdelivr.net;
     frame-src 'self' data: blob:;
-    worker-src 'self' blob:;
+    worker-src 'self' blob: https://cdn.jsdelivr.net;
     manifest-src 'self';
     object-src 'none';
     base-uri 'self';
@@ -28,6 +28,9 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="assets/styles.css">
+  <!-- pdf.js 3.11.174 (UMD legacy build, no ES module). Worker caricato da pdfjsLib.GlobalWorkerOptions.workerSrc.
+       integrity compilato da ./verify-vendors.sh --update -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" integrity="sha512-PLACEHOLDER-pdfjs-3.11.174" crossorigin="anonymous" defer></script>
 </head>
 <body>
   <div id="update-banner" class="banner hidden" role="status" aria-live="polite"></div>
@@ -68,8 +71,43 @@
           <div id="listino-info"></div>
           <h3>Mappatura colonne</h3>
           <div id="listino-mapping" class="admin-form"></div>
-          <h3>Anteprima</h3>
-          <div class="preview" id="listino-preview"></div>
+
+          <h3>PDF del listino</h3>
+          <p class="muted">Carica il PDF abbinato per aprire la pagina dell'articolo direttamente dai bottoni "Pag. N".</p>
+          <div class="row-flex">
+            <button type="button" id="pdfUploadBtn">Carica PDF listino</button>
+            <input id="pdfFile" type="file" accept="application/pdf,.pdf" style="display:none">
+            <button type="button" id="pdfClearBtn" class="ghost" hidden>Rimuovi PDF</button>
+          </div>
+          <div id="pdfStatus" class="listino-pdf-status">Nessun PDF caricato.</div>
+
+          <h3>Articoli</h3>
+          <div class="listino-filters">
+            <input type="search" id="listino-search" placeholder="Cerca per codice o descrizione…" autocomplete="off">
+            <select id="pageFilter" aria-label="Filtra per pagina del PDF">
+              <option value="">Tutte le pagine</option>
+            </select>
+            <span class="muted" id="listino-count"></span>
+          </div>
+          <div class="table-wrap" id="listino-tablewrap">
+            <table class="data" id="listino-table">
+              <thead>
+                <tr>
+                  <th>Codice</th>
+                  <th>Descrizione</th>
+                  <th class="num">Prezzo</th>
+                  <th>Pagina</th>
+                </tr>
+              </thead>
+              <tbody id="listino-tbody"></tbody>
+            </table>
+          </div>
+          <div class="listino-pager">
+            <button type="button" id="listino-prev">‹ Precedente</button>
+            <span id="listino-pager-info">—</span>
+            <button type="button" id="listino-next">Successiva ›</button>
+          </div>
+
           <div class="row-flex" style="margin-top:12px">
             <button type="button" id="listino-view">Apri viewer (PDF)</button>
             <button type="button" id="listino-remove" class="danger">Rimuovi listino</button>
@@ -191,6 +229,24 @@
   </div>
 
   <div class="toast-wrap" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- PDF viewer fullscreen overlay (canvas + nav). Aperto via "Pag. N" o "Apri viewer (PDF)". -->
+  <div id="pdfViewer" class="pdfViewer hide" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pdfTitle">
+    <div class="pdfTop">
+      <b id="pdfTitle">Listino PDF</b>
+      <div class="pdfNav">
+        <button id="pdfPrev" type="button" aria-label="Pagina precedente">‹</button>
+        <span>Pag.</span>
+        <input id="pdfPageInput" type="number" min="1" value="1" inputmode="numeric">
+        <span id="pdfPageTotal">/ —</span>
+        <button id="pdfNext" type="button" aria-label="Pagina successiva">›</button>
+        <button id="pdfClose" type="button">Chiudi</button>
+      </div>
+    </div>
+    <div id="pdfCanvasWrap" class="pdfCanvasWrap">
+      <canvas id="pdfCanvas"></canvas>
+    </div>
+  </div>
 
   <script src="assets/app.js" defer></script>
 </body>
