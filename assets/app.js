@@ -1490,8 +1490,8 @@
     const drop = $('#listino-drop');
     const fileInput = $('#listino-file');
     if (!drop || !fileInput) return;
-    drop.addEventListener('click', () => fileInput.click());
-    drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+    // Click → file picker: gestito dal `for="listino-file"` sulla label (HTML nativo).
+    // Niente handler JS sul click per evitare doppia attivazione.
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
     drop.addEventListener('drop', (e) => {
@@ -1504,6 +1504,17 @@
       if (f) handleListinoFile(f);
       fileInput.value = '';
     });
+    // A11y: la label con tabindex è focusable ma non si attiva con Enter/Space
+    // di default. Aggiungiamo l'handler keydown qui per ripristinare il comportamento.
+    const dropLabel = $('#listino-drop');
+    if (dropLabel) {
+      dropLabel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          fileInput.click();
+        }
+      });
+    }
     const removeBtn = $('#listino-remove');
     if (removeBtn) removeBtn.addEventListener('click', clearListino);
     const viewBtn = $('#listino-view');
