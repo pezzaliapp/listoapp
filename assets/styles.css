@@ -651,3 +651,8 @@ footer.app-footer {
   .pdfNav { width: 100%; justify-content: space-between; }
   .pdfNav input { width: 56px; }
 }
+
+/* Catalogo preventivo: stato "già aggiunto" + flash su click */
+.primary.is-added { background: #16a34a; color: white; }
+.primary.is-added:hover { background: #15803d; }
+.primary.flash { transform: scale(1.08); transition: transform 120ms ease-out; }

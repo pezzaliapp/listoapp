@@ -697,6 +697,24 @@
   }
 
   function addQuoteItem(seed) {
+    // Merge per codice: se l'articolo è già nel preventivo, incrementa qty
+    // invece di aggiungere una riga duplicata. Aggiorna il <tr> esistente in-place.
+    if (seed && seed.code) {
+      const existing = quote.items.find((i) => i.code === seed.code);
+      if (existing) {
+        existing.qty = (Number(existing.qty) || 0) + (Number(seed.qty) || 1);
+        const tr = document.querySelector('#quote-tbody tr[data-item-id="' + CSS.escape(existing.id) + '"]');
+        if (tr) {
+          const inpQty = tr.querySelector('input[data-field="qty"]');
+          if (inpQty) inpQty.value = String(existing.qty);
+          const cell = tr.querySelector('[data-cell="subtotal"]');
+          if (cell) cell.textContent = formatCurrency(rowSubtotal(existing));
+        }
+        saveQuote();
+        updateTotalsUI();
+        return existing;
+      }
+    }
     const item = Object.assign({
       id: uid('it_'),
       code: '', name: '', price: 0, qty: 1, discount: 0
@@ -707,6 +725,7 @@
     if (tbody) tbody.appendChild(quoteRowEl(item));
     updateTotalsUI();
     renderQuoteEmpty();
+    return item;
   }
   function removeQuoteItem(id) {
     quote.items = quote.items.filter((i) => i.id !== id);
@@ -715,6 +734,7 @@
     if (tr && tr.parentNode) tr.parentNode.removeChild(tr);
     updateTotalsUI();
     renderQuoteEmpty();
+    renderPreventivoCatalog();
   }
   function renderQuoteEmpty() {
     const empty = $('#quote-empty');
@@ -840,8 +860,19 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'primary';
-      btn.textContent = 'Aggiungi';
-      btn.addEventListener('click', () => addQuoteItem({ code: code, name: name, price: price, qty: 1 }));
+      const existing = quote.items.find((it) => it.code === code);
+      if (existing) { btn.classList.add('is-added'); btn.textContent = '✓ Aggiunto ×' + existing.qty; }
+      else { btn.textContent = 'Aggiungi'; }
+      btn.addEventListener('click', () => {
+        addQuoteItem({ code: code, name: name, price: price, qty: 1 });
+        const cur = quote.items.find((it) => it.code === code);
+        if (cur) {
+          btn.classList.add('is-added');
+          btn.textContent = '✓ Aggiunto ×' + cur.qty;
+          btn.classList.add('flash');
+          setTimeout(() => btn.classList.remove('flash'), 250);
+        }
+      });
       item.appendChild(left);
       item.appendChild(priceEl);
       item.appendChild(btn);
