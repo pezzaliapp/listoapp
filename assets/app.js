@@ -78,12 +78,29 @@
   }
 
   function todayISO() {
+    // Data LOCALE dell'utente in YYYY-MM-DD. Niente toISOString() qui:
+    // restituirebbe la data UTC e in fusi >0 nelle prime ore della notte
+    // l'utente vede ancora "ieri", filtrando fuori promo con startsAt=oggi.
     const d = new Date();
-    return d.toISOString().slice(0, 10);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
   }
   function isWithinRange(today, startsAt, expiresAt) {
-    if (startsAt && today < startsAt) return false;
-    if (expiresAt && today > expiresAt) return false;
+    // Normalizza a YYYY-MM-DD puro: tollera ISO completi ("2026-05-05T22:00:00Z"),
+    // stringhe vuote, null, undefined. Confronto same-day inclusivo a entrambi
+    // gli estremi (la promo è attiva anche il giorno startsAt e il giorno expiresAt).
+    const norm = (s) => {
+      if (!s) return '';
+      const str = String(s).trim();
+      return str ? str.slice(0, 10) : '';
+    };
+    const t = norm(today);
+    const s = norm(startsAt);
+    const e = norm(expiresAt);
+    if (s && t < s) return false;
+    if (e && t > e) return false;
     return true;
   }
   function debounce(fn, ms) {
