@@ -1,16 +1,16 @@
 [
   {
-    "id": "p_mosbijmk_1tatvt",
-    "title": "promo doppia per bug test",
-    "description": "Se lo vedi funziona",
-    "url": "promo/prevendita_B_224_helper_B_300_RAL_7016_mod.pdf",
-    "type": "pdf",
-    "fileName": "prevendita B 224 + helper + B 300 RAL 7016 mod.pdf",
-    "fileMime": "application/pdf",
-    "fileSize": 2751288,
+    "id": "p_mosbq912_bhso32",
+    "title": "ale prova",
+    "description": "1234567890",
+    "url": "promo/Screenshot_2026-05-04_alle_23.23.57.png",
+    "type": "image",
+    "fileName": "Screenshot 2026-05-04 alle 23.23.57.png",
+    "fileMime": "image/png",
+    "fileSize": 1053224,
     "startsAt": "2026-05-05",
     "expiresAt": "2026-05-06",
     "active": true,
-    "createdAt": "2026-05-05T07:39:40.124Z"
+    "createdAt": "2026-05-05T07:45:39.639Z"
   }
 ]
