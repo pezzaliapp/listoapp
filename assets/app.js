@@ -772,6 +772,18 @@
       const cell = tr.querySelector('[data-cell="subtotal"]');
       if (cell) cell.textContent = formatCurrency(rowSubtotal(item));
       updateTotalsUI();
+      if (field === 'qty' && item.code) {
+        const cBtn = document.querySelector('#catalog-results button[data-code="' + CSS.escape(item.code) + '"]');
+        if (cBtn) {
+          if (item.qty >= 1) {
+            cBtn.classList.add('is-added');
+            cBtn.textContent = '✓ Aggiunto ×' + item.qty;
+          } else {
+            cBtn.classList.remove('is-added');
+            cBtn.textContent = 'Aggiungi';
+          }
+        }
+      }
     });
     // change: persisti
     tbody.addEventListener('change', () => saveQuote());
@@ -860,6 +872,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'primary';
+      btn.dataset.code = code;
       const existing = quote.items.find((it) => it.code === code);
       if (existing) { btn.classList.add('is-added'); btn.textContent = '✓ Aggiunto ×' + existing.qty; }
       else { btn.textContent = 'Aggiungi'; }
