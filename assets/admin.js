@@ -330,9 +330,17 @@
       if (type === 'checkbox') inp.checked = v !== false;
       else if (v !== undefined && v !== null) inp.value = String(v);
       inp.addEventListener('change', () => {
+        const prev = p[key];
         if (type === 'checkbox') p[key] = inp.checked;
         else if (type === 'number') p[key] = Number(inp.value) || 0;
         else p[key] = inp.value;
+        // Validazione cross-field: expiresAt non può precedere startsAt.
+        // Confronto lessicografico OK su stringhe YYYY-MM-DD. Vuoti = no check.
+        if ((key === 'startsAt' || key === 'expiresAt') && p.startsAt && p.expiresAt && p.expiresAt < p.startsAt) {
+          alert('Data di scadenza (' + p.expiresAt + ') precedente alla data di inizio (' + p.startsAt + '). Modifica annullata.');
+          p[key] = prev;
+          inp.value = prev == null ? '' : String(prev);
+        }
       });
       w.appendChild(l); w.appendChild(inp);
       return w;
