@@ -592,6 +592,7 @@
     fillForm();
     bindForm();
     renderPromoList();
+    if (hasSavedToken) await loadPromoFromGitHub();
   }
 
   if (document.readyState === 'loading') {
