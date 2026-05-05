@@ -329,7 +329,7 @@
   let listino = null; // {kind: 'tabular'|'pdf', fileName, columns:[], rows:[], mapping:{code,name,price}}
 
   // Filtri/paginazione del listino full
-  let listinoFilter = { q: '', page: '' };
+  let listinoFilter = { q: '', page: '', sort: 'original' };
   let listinoPage = 1;
   const LISTINO_PAGE_SIZE = 50;
 
@@ -345,7 +345,7 @@
     await idbDel(KEY_LISTINO_BLOB);
     listino = null;
     listinoPage = 1;
-    listinoFilter = { q: '', page: '' };
+    listinoFilter = { q: '', page: '', sort: 'original' };
     const search = $('#listino-search'); if (search) search.value = '';
     const pageSel = $('#pageFilter'); if (pageSel) pageSel.value = '';
     renderListino();
@@ -517,7 +517,20 @@
     renderListinoFull();
   }
 
-  // Filtra le righe correnti del listino in base a search + page filter.
+  // Ordinamento puro: ritorna copia, non muta input. Default = ordine originale.
+  function sortListinoRows(rows, sortBy) {
+    if (!sortBy || sortBy === 'original' || !listino || !listino.mapping) return rows.slice();
+    const arr = rows.slice();
+    if (sortBy === 'code') {
+      arr.sort((a, b) => codeOf(a, listino.mapping).localeCompare(codeOf(b, listino.mapping), undefined, { numeric: true }));
+    } else if (sortBy === 'page') {
+      arr.sort((a, b) => (Number(pageTokensOfRow(a)[0]) || Infinity) - (Number(pageTokensOfRow(b)[0]) || Infinity));
+    } else if (sortBy === 'price') {
+      arr.sort((a, b) => (priceOf(a, listino.mapping) || Infinity) - (priceOf(b, listino.mapping) || Infinity));
+    }
+    return arr;
+  }
+
   function filteredListinoRows() {
     if (!listino || listino.kind !== 'tabular') return [];
     const q = (listinoFilter.q || '').trim().toLowerCase();
@@ -568,12 +581,13 @@
     }
     if (wrap) wrap.style.display = '';
     const filtered = filteredListinoRows();
-    const total = filtered.length;
+    const sorted = sortListinoRows(filtered, listinoFilter.sort);
+    const total = sorted.length;
     const totalPages = Math.max(1, Math.ceil(total / LISTINO_PAGE_SIZE));
     if (listinoPage > totalPages) listinoPage = totalPages;
     if (listinoPage < 1) listinoPage = 1;
     const start = (listinoPage - 1) * LISTINO_PAGE_SIZE;
-    const slice = filtered.slice(start, start + LISTINO_PAGE_SIZE);
+    const slice = sorted.slice(start, start + LISTINO_PAGE_SIZE);
 
     for (const r of slice) {
       const tr = document.createElement('tr');
@@ -1752,6 +1766,12 @@
     const pageSel = $('#pageFilter');
     if (pageSel) pageSel.addEventListener('change', () => {
       listinoFilter.page = pageSel.value || '';
+      listinoPage = 1;
+      renderListinoFull();
+    });
+    const sortSel = $('#listino-sort');
+    if (sortSel) sortSel.addEventListener('change', () => {
+      listinoFilter.sort = sortSel.value;
       listinoPage = 1;
       renderListinoFull();
     });
