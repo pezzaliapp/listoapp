@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "p_mos3slb3_1abp3z",
+    "title": "pippo",
+    "description": "",
+    "url": "promo/prevendita_B_224_helper_B_300_RAL_7016_mod.pdf",
+    "type": "pdf",
+    "fileName": "prevendita B 224 + helper + B 300 RAL 7016 mod.pdf",
+    "fileMime": "application/pdf",
+    "fileSize": 2751288,
+    "startsAt": "2026-05-05",
+    "expiresAt": "",
+    "active": true,
+    "createdAt": "2026-05-05T04:03:31.935Z"
+  }
+]
