@@ -1,16 +1,16 @@
 [
   {
-    "id": "p_mosbvnl6_5h1pqk",
-    "title": "pluto",
-    "description": "pippo",
-    "url": "promo/alessandropezzali-Miniatura.jpg",
-    "type": "image",
-    "fileName": "alessandropezzali-Miniatura.jpg",
-    "fileMime": "image/jpeg",
-    "fileSize": 128998,
+    "id": "p_mosc8zct_0cnl5a",
+    "title": "",
+    "description": "",
+    "url": "promo/prevendita_B_224_helper_B_300_RAL_7016_mod.pdf",
+    "type": "pdf",
+    "fileName": "prevendita B 224 + helper + B 300 RAL 7016 mod.pdf",
+    "fileMime": "application/pdf",
+    "fileSize": 2751288,
     "startsAt": "2026-05-05",
-    "expiresAt": "2024-05-06",
+    "expiresAt": "2026-05-06",
     "active": true,
-    "createdAt": "2026-05-05T07:49:51.786Z"
+    "createdAt": "2026-05-05T08:00:13.565Z"
   }
 ]
