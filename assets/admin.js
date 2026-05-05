@@ -456,6 +456,21 @@
           if (existing && existing.sha) promoSha = existing.sha;
         } catch (_) {}
       }
+      // safety: confirm bloccante se stiamo pubblicando MENO promo di quelle già su GitHub.
+      // Best-effort: errori di rete o JSON malformato non bloccano la publish.
+      try {
+        const remote = await ghGetContents(config.promoPath);
+        if (remote && remote.content) {
+          const remoteJson = JSON.parse(base64ToUtf8(remote.content));
+          if (Array.isArray(remoteJson) && promoList.length < remoteJson.length) {
+            const ok = confirm('ATTENZIONE: stai per pubblicare ' + promoList.length + ' promo, ma su GitHub ce ne sono ' + remoteJson.length + '. Continuare e sovrascrivere?');
+            if (!ok) {
+              setStatus('publish-status', 'Annullato dall\'utente.', null);
+              return;
+            }
+          }
+        }
+      } catch (_) { /* check best-effort */ }
       const res = await ghPutContents(config.promoPath, b64, 'chore(promo): update ' + config.promoPath + ' (' + promoList.length + ')', promoSha);
       promoSha = (res && res.content && res.content.sha) || null;
       setStatus('publish-status', 'Pubblicato (' + promoList.length + ' promo).', true);
