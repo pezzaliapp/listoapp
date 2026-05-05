@@ -125,6 +125,24 @@
   // Cerca la colonna "pagina" in una riga grezza dell'Excel con sinonimi flessibili.
   // Match case-insensitive sui nomi delle colonne, restituisce il valore raw.
   const PAGE_COLUMN_NEEDLES = ['pagine', 'pagina', 'pag', 'pdf', 'page'];
+  const FAMILY_COLUMN_NEEDLES = ['famiglia', 'family', 'gamma', 'linea'];
+  const CATEGORY_COLUMN_NEEDLES = ['categoria', 'category', 'tipo', 'type', 'sottocategoria'];
+  // Generico: stessa logica di rawPageValue ma parametrizzato sui needle.
+  function rawColumnValue(row, needles) {
+    if (!row || typeof row !== 'object') return '';
+    const keys = Object.keys(row);
+    for (const n of needles) {
+      const k = keys.find((c) => String(c).toLowerCase().trim() === n);
+      if (k && row[k] != null && row[k] !== '') return row[k];
+    }
+    for (const k of keys) {
+      const lc = String(k).toLowerCase();
+      if (needles.some((n) => lc.includes(n)) && row[k] != null && row[k] !== '') return row[k];
+    }
+    return '';
+  }
+  function rawFamilyValue(row) { return rawColumnValue(row, FAMILY_COLUMN_NEEDLES); }
+  function rawCategoryValue(row) { return rawColumnValue(row, CATEGORY_COLUMN_NEEDLES); }
   function rawPageValue(row) {
     if (!row || typeof row !== 'object') return '';
     const keys = Object.keys(row);
@@ -329,7 +347,7 @@
   let listino = null; // {kind: 'tabular'|'pdf', fileName, columns:[], rows:[], mapping:{code,name,price}}
 
   // Filtri/paginazione del listino full
-  let listinoFilter = { q: '', page: '', sort: 'original' };
+  let listinoFilter = { q: '', page: '', family: '', category: '', sort: 'original' };
   let listinoPage = 1;
   const LISTINO_PAGE_SIZE = 50;
 
@@ -345,9 +363,11 @@
     await idbDel(KEY_LISTINO_BLOB);
     listino = null;
     listinoPage = 1;
-    listinoFilter = { q: '', page: '', sort: 'original' };
+    listinoFilter = { q: '', page: '', family: '', category: '', sort: 'original' };
     const search = $('#listino-search'); if (search) search.value = '';
     const pageSel = $('#pageFilter'); if (pageSel) pageSel.value = '';
+    const famSel = $('#familyFilter'); if (famSel) famSel.value = '';
+    const catSel = $('#categoryFilter'); if (catSel) catSel.value = '';
     renderListino();
     renderPreventivoCatalog();
     showToast('Listino rimosso.', 'success');
@@ -514,7 +534,30 @@
       }
     }
     populatePageFilter();
+    populateColumnFilter($('#familyFilter'), rawFamilyValue, 'Tutte le famiglie');
+    populateColumnFilter($('#categoryFilter'), rawCategoryValue, 'Tutte le categorie');
     renderListinoFull();
+  }
+
+  // Generico: popola un <select> con i valori distinct di una colonna del listino.
+  // getter(row) ritorna il valore raw (es. rawFamilyValue). Vuoti scartati, sort alfabetico.
+  function populateColumnFilter(selectEl, getter, defaultLabel) {
+    if (!selectEl) return;
+    const previousValue = selectEl.value;
+    const opts = ['<option value="">' + escapeHTML(defaultLabel) + '</option>'];
+    if (listino && listino.kind === 'tabular') {
+      const set = new Set();
+      for (const r of listino.rows) {
+        const v = String(getter(r) || '').trim();
+        if (v) set.add(v);
+      }
+      const sorted = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      for (const v of sorted) opts.push('<option value="' + escapeHTML(v) + '">' + escapeHTML(v) + '</option>');
+    }
+    selectEl.innerHTML = opts.join('');
+    if (previousValue && Array.from(selectEl.options).some((o) => o.value === previousValue)) {
+      selectEl.value = previousValue;
+    }
   }
 
   // Ordinamento puro: ritorna copia, non muta input. Default = ordine originale.
@@ -535,6 +578,8 @@
     if (!listino || listino.kind !== 'tabular') return [];
     const q = (listinoFilter.q || '').trim().toLowerCase();
     const pageFilter = listinoFilter.page || '';
+    const familyFilter = listinoFilter.family || '';
+    const categoryFilter = listinoFilter.category || '';
     return listino.rows.filter((r) => {
       if (q) {
         const code = codeOf(r, listino.mapping).toLowerCase();
@@ -542,6 +587,8 @@
         if (!code.includes(q) && !name.includes(q)) return false;
       }
       if (pageFilter && !pageTokensOfRow(r).includes(pageFilter)) return false;
+      if (familyFilter && String(rawFamilyValue(r) || '').trim() !== familyFilter) return false;
+      if (categoryFilter && String(rawCategoryValue(r) || '').trim() !== categoryFilter) return false;
       return true;
     });
   }
@@ -1772,6 +1819,18 @@
     const sortSel = $('#listino-sort');
     if (sortSel) sortSel.addEventListener('change', () => {
       listinoFilter.sort = sortSel.value;
+      listinoPage = 1;
+      renderListinoFull();
+    });
+    const familySel = $('#familyFilter');
+    if (familySel) familySel.addEventListener('change', () => {
+      listinoFilter.family = familySel.value;
+      listinoPage = 1;
+      renderListinoFull();
+    });
+    const categorySel = $('#categoryFilter');
+    if (categorySel) categorySel.addEventListener('change', () => {
+      listinoFilter.category = categorySel.value;
       listinoPage = 1;
       renderListinoFull();
     });

@@ -583,7 +583,7 @@ footer.app-footer {
   margin: 8px 0 12px;
 }
 @media (min-width: 720px) {
-  .listino-filters { grid-template-columns: 2fr 1fr 1fr auto; align-items: end; }
+  .listino-filters { grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; align-items: end; }
 }
 .listino-pager {
   display: flex;
