@@ -828,6 +828,7 @@
       quote = { items: [], globalDiscount: 0, customer: '', notes: '' };
       saveQuote();
       renderQuote();
+      renderPreventivoCatalog();
       showToast('Preventivo svuotato.', 'success');
     });
 
