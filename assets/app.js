@@ -534,8 +534,8 @@
       }
     }
     populatePageFilter();
-    populateColumnFilter($('#familyFilter'), rawFamilyValue, 'Tutte le famiglie');
-    populateColumnFilter($('#categoryFilter'), rawCategoryValue, 'Tutte le categorie');
+    populateColumnFilter($('#familyFilter'), rawFamilyValue, 'Famiglie');
+    populateColumnFilter($('#categoryFilter'), rawCategoryValue, 'Categorie');
     renderListinoFull();
   }
 
@@ -598,7 +598,7 @@
     const sel = $('#pageFilter');
     if (!sel) return;
     const previousValue = sel.value;
-    const opts = ['<option value="">Tutte le pagine</option>'];
+    const opts = ['<option value="">Pagine</option>'];
     if (listino && listino.kind === 'tabular') {
       const set = new Set();
       for (const r of listino.rows) for (const p of pageTokensOfRow(r)) set.add(p);
