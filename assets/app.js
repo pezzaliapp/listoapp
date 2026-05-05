@@ -1172,10 +1172,125 @@
         body.appendChild(img);
         body.classList.add('padded');
       } else if (isPdf) {
-        const iframe = document.createElement('iframe');
-        iframe.src = resolvedUrl;
-        iframe.title = p.title || 'Promo PDF';
-        body.appendChild(iframe);
+        // Render via pdf.js su canvas: gli iframe con src=data:application/pdf
+        // vengono bloccati da Chrome/Safari per policy di sicurezza, lasciando
+        // il modale bianco. Stesso pattern del viewer del listino, ma stato
+        // in closure isolato (niente globali, niente listener su document).
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexDirection = 'column';
+        wrapper.style.height = '100%';
+
+        const toolbar = document.createElement('div');
+        toolbar.style.display = 'flex';
+        toolbar.style.alignItems = 'center';
+        toolbar.style.justifyContent = 'center';
+        toolbar.style.gap = '8px';
+        toolbar.style.padding = '8px';
+        toolbar.style.borderBottom = '1px solid var(--border)';
+        toolbar.style.background = 'var(--surface)';
+        toolbar.style.position = 'sticky';
+        toolbar.style.top = '0';
+        toolbar.style.zIndex = '1';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.setAttribute('aria-label', 'Pagina precedente');
+        prevBtn.textContent = '‹';
+        prevBtn.disabled = true;
+
+        const indicator = document.createElement('span');
+        indicator.style.minWidth = '64px';
+        indicator.style.textAlign = 'center';
+        indicator.style.fontVariantNumeric = 'tabular-nums';
+        indicator.textContent = '— / —';
+
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.setAttribute('aria-label', 'Pagina successiva');
+        nextBtn.textContent = '›';
+        nextBtn.disabled = true;
+
+        toolbar.append(prevBtn, indicator, nextBtn);
+
+        const status = document.createElement('div');
+        status.style.padding = '16px';
+        status.style.textAlign = 'center';
+        status.style.color = 'var(--text-muted)';
+        status.textContent = 'Caricamento…';
+
+        const canvasWrap = document.createElement('div');
+        canvasWrap.style.flex = '1';
+        canvasWrap.style.overflow = 'auto';
+        canvasWrap.style.padding = '12px';
+        canvasWrap.style.display = 'flex';
+        canvasWrap.style.justifyContent = 'center';
+        canvasWrap.style.alignItems = 'flex-start';
+
+        const canvas = document.createElement('canvas');
+        canvas.style.maxWidth = '100%';
+        canvas.style.height = 'auto';
+        canvas.style.display = 'none';
+        canvas.style.background = '#fff';
+        canvas.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+        canvasWrap.appendChild(canvas);
+
+        wrapper.append(toolbar, status, canvasWrap);
+        body.appendChild(wrapper);
+
+        // Stato locale isolato in closure
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 0;
+
+        async function renderPromoPage(n) {
+          if (!pdfDoc) return;
+          currentPage = Math.min(Math.max(1, Number(n) || 1), totalPages);
+          try {
+            const page = await pdfDoc.getPage(currentPage);
+            const wrapW = Math.max(320, canvasWrap.clientWidth - 24);
+            const base = page.getViewport({ scale: 1 });
+            const scale = wrapW / base.width;
+            const viewport = page.getViewport({ scale });
+            const ctx = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            canvas.style.display = 'block';
+            indicator.textContent = currentPage + ' / ' + totalPages;
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
+          } catch (err) {
+            console.error(err);
+            status.textContent = 'Errore nel rendering della pagina ' + currentPage + '.';
+            status.style.display = '';
+          }
+        }
+
+        prevBtn.addEventListener('click', () => renderPromoPage(currentPage - 1));
+        nextBtn.addEventListener('click', () => renderPromoPage(currentPage + 1));
+
+        (async () => {
+          if (!window.pdfjsLib) {
+            status.textContent = 'Viewer PDF non disponibile (pdf.js non caricato).';
+            return;
+          }
+          try {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+            const getDocArg = resolvedUrl.startsWith('data:')
+              ? { data: dataUrlToUint8Array(resolvedUrl) }
+              : { url: resolvedUrl };
+            pdfDoc = await window.pdfjsLib.getDocument(getDocArg).promise;
+            totalPages = pdfDoc.numPages || 0;
+            if (totalPages === 0) throw new Error('PDF senza pagine');
+            status.style.display = 'none';
+            if (totalPages === 1) toolbar.style.display = 'none';
+            await renderPromoPage(1);
+          } catch (err) {
+            console.error(err);
+            status.textContent = 'Impossibile aprire il PDF.';
+          }
+        })();
       } else {
         const a = document.createElement('a');
         a.href = resolvedUrl; a.target = '_blank'; a.rel = 'noopener';
@@ -1305,6 +1420,15 @@
         fr.readAsDataURL(blob);
       } catch (e) { reject(e); }
     });
+  }
+
+  function dataUrlToUint8Array(dataUrl) {
+    const idx = dataUrl.indexOf(',');
+    const base64 = idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl;
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
   }
 
   // ────────────────────────────────────────────────
