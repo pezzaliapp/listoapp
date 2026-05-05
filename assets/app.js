@@ -666,6 +666,16 @@
     tr.dataset.itemId = item.id;
     const tdCode = document.createElement('td'); tdCode.textContent = item.code || '';
     const tdName = document.createElement('td'); tdName.textContent = item.name || '';
+    const tdPage = document.createElement('td');
+    if (item.code && listino && listino.mapping && listino.mapping.code) {
+      const row = listino.rows.find((r) => String(r[listino.mapping.code] || '') === item.code);
+      if (row) for (const n of pageTokensOfRow(row)) {
+        const pgBtn = document.createElement('button');
+        pgBtn.type = 'button'; pgBtn.className = 'pageBtn';
+        pgBtn.dataset.page = n; pgBtn.textContent = 'Pag. ' + n;
+        tdPage.appendChild(pgBtn);
+      }
+    }
     const tdPrice = document.createElement('td'); tdPrice.className = 'num';
     const inpPrice = document.createElement('input');
     inpPrice.type = 'number'; inpPrice.step = '0.01'; inpPrice.min = '0';
@@ -692,7 +702,7 @@
     btn.setAttribute('aria-label', 'Rimuovi');
     btn.textContent = '✕';
     tdAct.appendChild(btn);
-    tr.append(tdCode, tdName, tdPrice, tdQty, tdDisc, tdSub, tdAct);
+    tr.append(tdCode, tdName, tdPage, tdPrice, tdQty, tdDisc, tdSub, tdAct);
     return tr;
   }
 
@@ -787,8 +797,10 @@
     });
     // change: persisti
     tbody.addEventListener('change', () => saveQuote());
-    // click rimuovi
+    // click rimuovi + apertura PDF dalla cella PAG.
     tbody.addEventListener('click', (e) => {
+      const pgBtn = e.target.closest('[data-page]');
+      if (pgBtn) { openPdfAtPage(Number(pgBtn.dataset.page)); return; }
       const btn = e.target.closest('button[data-action="remove"]');
       if (!btn) return;
       const tr = btn.closest('tr[data-item-id]');
