@@ -1092,9 +1092,8 @@
         if (quoteHeader.text) {
           doc.setFontSize(10);
           const lines = quoteHeader.text.split('\n').slice(0, 8);
-          const textHeight = lines.length * 12;
           const textX = quoteHeader.logoDataUrl ? M + drawW + 16 : M;
-          let textY = (drawH > textHeight) ? headerY + (drawH - textHeight) / 2 + 10 : headerY + 10;
+          let textY = headerY + 10;  // sempre top-aligned, niente centratura
           for (const line of lines) {
             doc.text(line, textX, textY);
             textY += 12;
@@ -1108,14 +1107,37 @@
         doc.setFontSize(12);
         const dt = new Date().toLocaleString('it-IT');
         doc.text('Preventivo del ' + dt, M, y); y += 16;
-        if (quote.customer) { doc.setFontSize(10); doc.text('Cliente: ' + quote.customer, M, y); y += 14; }
+        if (quote.customer) {
+          doc.setFontSize(10);
+          const customerLines = quote.customer.split('\n').slice(0, 8);
+          if (customerLines.length > 0) {
+            doc.text('Cliente: ' + customerLines[0], M, y); y += 14;
+            for (let i = 1; i < customerLines.length; i++) {
+              if (customerLines[i].trim()) {
+                doc.text(customerLines[i], M + 50, y);
+                y += 14;
+              }
+            }
+          }
+        }
         y += 8;
       } else {
         doc.setFontSize(16); doc.text('Preventivo ListoAPP', M, y); y += 22;
         doc.setFontSize(10);
         const dt = new Date().toLocaleString('it-IT');
         doc.text('Data: ' + dt, M, y); y += 14;
-        if (quote.customer) { doc.text('Cliente: ' + quote.customer, M, y); y += 14; }
+        if (quote.customer) {
+          const customerLines = quote.customer.split('\n').slice(0, 8);
+          if (customerLines.length > 0) {
+            doc.text('Cliente: ' + customerLines[0], M, y); y += 14;
+            for (let i = 1; i < customerLines.length; i++) {
+              if (customerLines[i].trim()) {
+                doc.text(customerLines[i], M + 50, y);
+                y += 14;
+              }
+            }
+          }
+        }
         y += 10;
       }
       doc.setFontSize(11);
