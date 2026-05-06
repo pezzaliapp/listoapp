@@ -656,3 +656,16 @@ footer.app-footer {
 .primary.is-added { background: #16a34a; color: white; }
 .primary.is-added:hover { background: #15803d; }
 .primary.flash { transform: scale(1.08); transition: transform 120ms ease-out; }
+
+/* Editor intestazione PDF preventivo (logo + anagrafica) */
+.quote-header-editor { margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.quote-header-editor summary { cursor: pointer; font-weight: 600; padding: 4px 0; user-select: none; list-style: none; }
+.quote-header-editor summary::-webkit-details-marker { display: none; }
+.quote-header-editor summary::before { content: '▸ '; display: inline-block; transition: transform 0.15s ease; }
+.quote-header-editor[open] summary::before { content: '▾ '; }
+.quote-header-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
+@media (min-width: 720px) { .quote-header-grid { grid-template-columns: 2fr 1fr; } }
+.quote-header-grid textarea { width: 100%; min-height: 140px; resize: vertical; font-family: inherit; }
+.qh-logo-preview { margin-top: 8px; min-height: 60px; }
+.qh-logo-preview img { max-width: 200px; max-height: 100px; border: 1px solid var(--border); border-radius: 4px; }
+.quote-header-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }

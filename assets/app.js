@@ -342,6 +342,7 @@
   // PDF abbinato al listino tabellare (separato da KEY_LISTINO_BLOB che tiene il file
   // originale qualunque sia: xlsx/csv o pdf). Schema: {name, type, blob:ArrayBuffer, savedAt}.
   const KEY_LISTINO_PDF = 'listino_pdf';
+  const KEY_QUOTE_HEADER = 'quote_header';
 
   // Stato in memoria del listino corrente
   let listino = null; // {kind: 'tabular'|'pdf', fileName, columns:[], rows:[], mapping:{code,name,price}}
@@ -900,6 +901,30 @@
     if (expPdf) expPdf.addEventListener('click', exportQuotePDF);
     const expTxt = $('#quote-export-text');
     if (expTxt) expTxt.addEventListener('click', exportQuoteText);
+
+    // Editor intestazione PDF (logo + anagrafica)
+    const qhLogo = $('#qh-logo-input');
+    if (qhLogo) qhLogo.addEventListener('change', async () => {
+      const file = qhLogo.files && qhLogo.files[0];
+      if (!file) return;
+      try {
+        const out = await resizeLogo(file, 200, 200);
+        quoteHeader.logoDataUrl = out.dataUrl;
+        quoteHeader.logoMime = out.mime;
+        applyQuoteHeaderToUI();
+        showToast('Logo caricato. Ricordati di salvare.', 'info');
+      } catch (err) {
+        showToast('Errore caricamento logo: ' + (err.message || err), 'error');
+      }
+    });
+    const qhSave = $('#qh-save');
+    if (qhSave) qhSave.addEventListener('click', saveQuoteHeader);
+    const qhReset = $('#qh-reset');
+    if (qhReset) qhReset.addEventListener('click', async () => {
+      if (!confirm('Cancellare intestazione?')) return;
+      await resetQuoteHeader();
+      const inp = $('#qh-logo-input'); if (inp) inp.value = '';
+    });
   }
 
   function renderPreventivoCatalog() {
@@ -974,6 +999,70 @@
     }
   }
 
+  // Intestazione PDF preventivo (anagrafica venditore + logo). Persistente in IDB.
+  let quoteHeader = { text: '', logoDataUrl: null, logoMime: null, updatedAt: 0 };
+
+  async function loadQuoteHeader() {
+    const saved = await idbGet(KEY_QUOTE_HEADER);
+    if (saved && typeof saved === 'object') {
+      quoteHeader = Object.assign({ text: '', logoDataUrl: null, logoMime: null, updatedAt: 0 }, saved);
+    }
+    applyQuoteHeaderToUI();
+  }
+
+  function applyQuoteHeaderToUI() {
+    const ta = $('#qh-text'); if (ta) ta.value = quoteHeader.text || '';
+    const prev = $('#qh-logo-preview');
+    if (prev) {
+      prev.innerHTML = '';
+      if (quoteHeader.logoDataUrl) {
+        const img = document.createElement('img');
+        img.src = quoteHeader.logoDataUrl; img.alt = 'logo';
+        prev.appendChild(img);
+      }
+    }
+  }
+
+  async function saveQuoteHeader() {
+    const ta = $('#qh-text');
+    quoteHeader.text = ta ? ta.value : '';
+    quoteHeader.updatedAt = Date.now();
+    await idbSet(KEY_QUOTE_HEADER, quoteHeader);
+    showToast('Intestazione salvata.', 'success');
+  }
+
+  async function resetQuoteHeader() {
+    quoteHeader = { text: '', logoDataUrl: null, logoMime: null, updatedAt: 0 };
+    await idbDel(KEY_QUOTE_HEADER);
+    applyQuoteHeaderToUI();
+    showToast('Intestazione cancellata.', 'success');
+  }
+
+  function resizeLogo(file, maxW, maxH) {
+    maxW = maxW || 200; maxH = maxH || 200;
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          const ratio = Math.min(maxW / w, maxH / h, 1);
+          w = Math.round(w * ratio); h = Math.round(h * ratio);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const out = canvas.toDataURL('image/jpeg', 0.85);
+          resolve({ dataUrl: out, mime: 'image/jpeg' });
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function exportQuotePDF() {
     if (!quote.items.length) { showToast('Preventivo vuoto.', 'warn'); return; }
     try {
@@ -981,12 +1070,43 @@
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const M = 40; let y = M;
-      doc.setFontSize(16); doc.text('Preventivo ListoAPP', M, y); y += 22;
-      doc.setFontSize(10);
-      const dt = new Date().toLocaleString('it-IT');
-      doc.text('Data: ' + dt, M, y); y += 14;
-      if (quote.customer) { doc.text('Cliente: ' + quote.customer, M, y); y += 14; }
-      y += 10;
+      if (quoteHeader.text || quoteHeader.logoDataUrl) {
+        // Layout custom: logo sinistra, anagrafica destra
+        const headerY = M;
+        const logoW = 80; const logoH = 60;
+        if (quoteHeader.logoDataUrl) {
+          try {
+            const fmt = (quoteHeader.logoMime === 'image/png') ? 'PNG' : 'JPEG';
+            doc.addImage(quoteHeader.logoDataUrl, fmt, M, headerY, logoW, logoH);
+          } catch (_) { /* ignore image errors */ }
+        }
+        if (quoteHeader.text) {
+          doc.setFontSize(10);
+          const lines = quoteHeader.text.split('\n').slice(0, 8);
+          const textX = quoteHeader.logoDataUrl ? M + logoW + 16 : M;
+          let textY = headerY + 12;
+          for (const line of lines) {
+            doc.text(line, textX, textY);
+            textY += 12;
+          }
+        }
+        y = M + Math.max(logoH, 12 * 6) + 16;
+        doc.setLineWidth(0.5);
+        doc.line(M, y, 555, y);
+        y += 16;
+        doc.setFontSize(12);
+        const dt = new Date().toLocaleString('it-IT');
+        doc.text('Preventivo del ' + dt, M, y); y += 16;
+        if (quote.customer) { doc.setFontSize(10); doc.text('Cliente: ' + quote.customer, M, y); y += 14; }
+        y += 8;
+      } else {
+        doc.setFontSize(16); doc.text('Preventivo ListoAPP', M, y); y += 22;
+        doc.setFontSize(10);
+        const dt = new Date().toLocaleString('it-IT');
+        doc.text('Data: ' + dt, M, y); y += 14;
+        if (quote.customer) { doc.text('Cliente: ' + quote.customer, M, y); y += 14; }
+        y += 10;
+      }
       doc.setFontSize(11);
       doc.text('Cod.', M, y);
       doc.text('Descrizione', M + 80, y);
@@ -1952,6 +2072,7 @@
     bindQuoteEvents();
     loadQuote();
     renderQuote();
+    try { await loadQuoteHeader(); } catch (e) { console.warn('IDB quote header load failed:', e); }
     try { await loadListinoFromIDB(); } catch (e) { console.warn('IDB listino load failed:', e); }
     renderListino();
     renderPreventivoCatalog();

@@ -132,6 +132,24 @@
     <section class="panel" id="panel-preventivo" role="tabpanel">
       <div class="card">
         <h2>Preventivo</h2>
+        <details class="quote-header-editor">
+          <summary>Intestazione preventivo (logo + anagrafica)</summary>
+          <div class="quote-header-grid">
+            <div>
+              <label for="qh-text">Anagrafica (5-6 righe)</label>
+              <textarea id="qh-text" rows="6" placeholder="Es:&#10;Mia Azienda Srl&#10;Via Roma 12&#10;09013 Carbonia (SU)&#10;P.IVA 12345678901&#10;tel. 0781 123456&#10;info@miaazienda.it"></textarea>
+            </div>
+            <div>
+              <label for="qh-logo-input">Logo (PNG/JPEG, max 200x200)</label>
+              <input type="file" id="qh-logo-input" accept="image/png,image/jpeg">
+              <div id="qh-logo-preview" class="qh-logo-preview"></div>
+            </div>
+          </div>
+          <div class="quote-header-actions">
+            <button type="button" class="primary" id="qh-save">Salva</button>
+            <button type="button" class="ghost" id="qh-reset">Cancella</button>
+          </div>
+        </details>
         <div class="grid-2">
           <div>
             <label for="quote-customer">Cliente</label>
