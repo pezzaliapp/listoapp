@@ -911,6 +911,8 @@
         const out = await resizeLogo(file, 200, 200);
         quoteHeader.logoDataUrl = out.dataUrl;
         quoteHeader.logoMime = out.mime;
+        quoteHeader.logoWidth = out.width;
+        quoteHeader.logoHeight = out.height;
         applyQuoteHeaderToUI();
         showToast('Logo caricato. Ricordati di salvare.', 'info');
       } catch (err) {
@@ -1000,12 +1002,12 @@
   }
 
   // Intestazione PDF preventivo (anagrafica venditore + logo). Persistente in IDB.
-  let quoteHeader = { text: '', logoDataUrl: null, logoMime: null, updatedAt: 0 };
+  let quoteHeader = { text: '', logoDataUrl: null, logoMime: null, logoWidth: 0, logoHeight: 0, updatedAt: 0 };
 
   async function loadQuoteHeader() {
     const saved = await idbGet(KEY_QUOTE_HEADER);
     if (saved && typeof saved === 'object') {
-      quoteHeader = Object.assign({ text: '', logoDataUrl: null, logoMime: null, updatedAt: 0 }, saved);
+      quoteHeader = Object.assign({ text: '', logoDataUrl: null, logoMime: null, logoWidth: 0, logoHeight: 0, updatedAt: 0 }, saved);
     }
     applyQuoteHeaderToUI();
   }
@@ -1032,7 +1034,7 @@
   }
 
   async function resetQuoteHeader() {
-    quoteHeader = { text: '', logoDataUrl: null, logoMime: null, updatedAt: 0 };
+    quoteHeader = { text: '', logoDataUrl: null, logoMime: null, logoWidth: 0, logoHeight: 0, updatedAt: 0 };
     await idbDel(KEY_QUOTE_HEADER);
     applyQuoteHeaderToUI();
     showToast('Intestazione cancellata.', 'success');
@@ -1053,7 +1055,7 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, w, h);
           const out = canvas.toDataURL('image/jpeg', 0.85);
-          resolve({ dataUrl: out, mime: 'image/jpeg' });
+          resolve({ dataUrl: out, mime: 'image/jpeg', width: w, height: h });
         };
         img.onerror = reject;
         img.src = e.target.result;
@@ -1071,26 +1073,35 @@
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
       const M = 40; let y = M;
       if (quoteHeader.text || quoteHeader.logoDataUrl) {
-        // Layout custom: logo sinistra, anagrafica destra
+        // Layout custom: logo sinistra (aspect ratio preservato), anagrafica destra centrata.
         const headerY = M;
-        const logoW = 80; const logoH = 60;
+        const MAX_LOGO_W = 100, MAX_LOGO_H = 60;
+        let drawW = 0, drawH = 0;
         if (quoteHeader.logoDataUrl) {
+          const lw = quoteHeader.logoWidth || 200;
+          const lh = quoteHeader.logoHeight || 200;
+          const scale = Math.min(MAX_LOGO_W / lw, MAX_LOGO_H / lh, 1);
+          drawW = Math.round(lw * scale);
+          drawH = Math.round(lh * scale);
           try {
             const fmt = (quoteHeader.logoMime === 'image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(quoteHeader.logoDataUrl, fmt, M, headerY, logoW, logoH);
-          } catch (_) { /* ignore image errors */ }
+            doc.addImage(quoteHeader.logoDataUrl, fmt, M, headerY, drawW, drawH);
+          } catch (_) { /* ignore */ }
         }
+        let textBottom = headerY;
         if (quoteHeader.text) {
           doc.setFontSize(10);
           const lines = quoteHeader.text.split('\n').slice(0, 8);
-          const textX = quoteHeader.logoDataUrl ? M + logoW + 16 : M;
-          let textY = headerY + 12;
+          const textHeight = lines.length * 12;
+          const textX = quoteHeader.logoDataUrl ? M + drawW + 16 : M;
+          let textY = (drawH > textHeight) ? headerY + (drawH - textHeight) / 2 + 10 : headerY + 10;
           for (const line of lines) {
             doc.text(line, textX, textY);
             textY += 12;
           }
+          textBottom = textY;
         }
-        y = M + Math.max(logoH, 12 * 6) + 16;
+        y = Math.max(headerY + drawH, textBottom) + 16;
         doc.setLineWidth(0.5);
         doc.line(M, y, 555, y);
         y += 16;
