@@ -343,6 +343,7 @@
   // originale qualunque sia: xlsx/csv o pdf). Schema: {name, type, blob:ArrayBuffer, savedAt}.
   const KEY_LISTINO_PDF = 'listino_pdf';
   const KEY_QUOTE_HEADER = 'quote_header';
+  const KEY_QUOTE_PDF_OPTIONS = 'quote_pdf_options';
 
   // Stato in memoria del listino corrente
   let listino = null; // {kind: 'tabular'|'pdf', fileName, columns:[], rows:[], mapping:{code,name,price}}
@@ -927,6 +928,12 @@
       await resetQuoteHeader();
       const inp = $('#qh-logo-input'); if (inp) inp.value = '';
     });
+
+    // Opzioni PDF (auto-save su change, niente bottone dedicato)
+    const optRow = $('#opt-row-discount');
+    if (optRow) optRow.addEventListener('change', () => { quotePdfOptions.showRowDiscount = optRow.checked; saveQuotePdfOptions(); });
+    const optGlobal = $('#opt-global-discount');
+    if (optGlobal) optGlobal.addEventListener('change', () => { quotePdfOptions.showGlobalDiscount = optGlobal.checked; saveQuotePdfOptions(); });
   }
 
   function renderPreventivoCatalog() {
@@ -1040,6 +1047,27 @@
     showToast('Intestazione cancellata.', 'success');
   }
 
+  // Opzioni rendering PDF preventivo (checkbox accanto a Esporta PDF). Persistente in IDB.
+  let quotePdfOptions = { showRowDiscount: false, showGlobalDiscount: true, updatedAt: 0 };
+
+  async function loadQuotePdfOptions() {
+    const saved = await idbGet(KEY_QUOTE_PDF_OPTIONS);
+    if (saved && typeof saved === 'object') {
+      quotePdfOptions = Object.assign({ showRowDiscount: false, showGlobalDiscount: true, updatedAt: 0 }, saved);
+    }
+    applyQuotePdfOptionsToUI();
+  }
+
+  function applyQuotePdfOptionsToUI() {
+    const c1 = $('#opt-row-discount'); if (c1) c1.checked = !!quotePdfOptions.showRowDiscount;
+    const c2 = $('#opt-global-discount'); if (c2) c2.checked = !!quotePdfOptions.showGlobalDiscount;
+  }
+
+  async function saveQuotePdfOptions() {
+    quotePdfOptions.updatedAt = Date.now();
+    await idbSet(KEY_QUOTE_PDF_OPTIONS, quotePdfOptions);
+  }
+
   function resizeLogo(file, maxW, maxH) {
     maxW = maxW || 200; maxH = maxH || 200;
     return new Promise((resolve, reject) => {
@@ -1143,11 +1171,13 @@
         y += 10;
       }
       doc.setFontSize(11);
+      const subtotX = quotePdfOptions.showRowDiscount ? (M + 500) : (M + 460);
       doc.text('Cod.', M, y);
       doc.text('Descrizione', M + 80, y);
       doc.text('Q.tà', M + 320, y);
       doc.text('Prezzo', M + 380, y);
-      doc.text('Subtot.', M + 460, y);
+      if (quotePdfOptions.showRowDiscount) doc.text('Sc.%', M + 460, y);
+      doc.text('Subtot.', subtotX, y);
       y += 6; doc.line(M, y, 555, y); y += 14;
       doc.setFontSize(10);
       quote.items.forEach((it) => {
@@ -1156,7 +1186,12 @@
         doc.text(String(it.name || '').slice(0, 40), M + 80, y);
         doc.text(String(it.qty || 0), M + 320, y);
         doc.text(formatCurrency(it.price || 0), M + 380, y);
-        doc.text(formatCurrency(rowSubtotal(it)), M + 460, y);
+        if (quotePdfOptions.showRowDiscount) {
+          const d = Number(it.discount);
+          const discText = (isFinite(d) && d > 0) ? Math.round(d) + '%' : '-';
+          doc.text(discText, M + 460, y);
+        }
+        doc.text(formatCurrency(rowSubtotal(it)), subtotX, y);
         y += 14;
       });
       const t = quoteTotals();
@@ -1164,7 +1199,9 @@
       doc.setFontSize(11);
       doc.text('Subtotale: ' + formatCurrency(t.sub), M + 320, y); y += 14;
       doc.text('Sconti riga: -' + formatCurrency(t.rowDisc), M + 320, y); y += 14;
-      doc.text('Sconto globale: -' + formatCurrency(t.globalDisc), M + 320, y); y += 14;
+      if (quotePdfOptions.showGlobalDiscount) {
+        doc.text('Sconto globale: -' + formatCurrency(t.globalDisc), M + 320, y); y += 14;
+      }
       doc.setFontSize(13);
       doc.text('TOTALE: ' + formatCurrency(t.grand), M + 320, y); y += 18;
       if (quote.notes) {
@@ -2108,6 +2145,7 @@
     loadQuote();
     renderQuote();
     try { await loadQuoteHeader(); } catch (e) { console.warn('IDB quote header load failed:', e); }
+    try { await loadQuotePdfOptions(); } catch (e) { console.warn('IDB pdf options load failed:', e); }
     try { await loadListinoFromIDB(); } catch (e) { console.warn('IDB listino load failed:', e); }
     renderListino();
     renderPreventivoCatalog();

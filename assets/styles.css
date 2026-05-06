@@ -670,3 +670,5 @@ footer.app-footer {
 .qh-logo-preview img { max-width: 200px; max-height: 100px; border: 1px solid var(--border); border-radius: 4px; }
 .quote-header-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
 #quote-customer { width: 100%; min-height: 80px; resize: vertical; font-family: inherit; }
+.pdf-opt { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; user-select: none; margin-right: 8px; }
+.pdf-opt input { margin: 0; }
