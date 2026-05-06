@@ -1349,43 +1349,44 @@
     const docNumber = (quote.number || '').trim();
     const lines = [];
 
-    // Anagrafica venditore (se presente)
+    // Titolo
+    lines.push('*PREVENTIVO' + (docNumber ? ' N. ' + docNumber : '') + '*');
+    lines.push('Data: ' + dt);
+    lines.push('Validita: ' + (quote.validity || 30) + ' giorni');
+    lines.push('');
+
+    // Venditore (anagrafica) se presente
     if (quoteHeader.text && quoteHeader.text.trim()) {
-      const vendorLines = quoteHeader.text.split('\n').slice(0, 8).filter(l => l.trim());
+      lines.push('Venditore:');
+      const vendorLines = quoteHeader.text.split('\n').slice(0, 8).map(l => l.trim()).filter(l => l);
       for (const line of vendorLines) lines.push(line);
       lines.push('');
     }
 
-    // Titolo preventivo
-    lines.push('*PREVENTIVO' + (docNumber ? ' n. ' + docNumber : '') + ' del ' + dt + '*');
-    lines.push('Validita: ' + (quote.validity || 30) + ' giorni');
-    lines.push('');
-
     // Cliente
     if (quote.customer && quote.customer.trim()) {
       lines.push('Cliente:');
-      const custLines = quote.customer.split('\n').slice(0, 8).filter(l => l.trim());
+      const custLines = quote.customer.split('\n').slice(0, 8).map(l => l.trim()).filter(l => l);
       for (const line of custLines) lines.push(line);
       lines.push('');
     }
 
-    // Separator
-    lines.push('────────────────');
-
-    // Articoli
-    quote.items.forEach((it) => {
-      const code = it.code ? '[' + it.code + '] ' : '';
-      const name = it.name || '';
-      lines.push('• ' + code + name);
+    // Articoli numerati con label
+    lines.push('Articoli:');
+    lines.push('');
+    quote.items.forEach((it, idx) => {
+      lines.push((idx + 1) + '. Codice: ' + (it.code || '-'));
+      if (it.name) lines.push('   Descrizione: ' + it.name);
+      lines.push('   Quantita: ' + (it.qty || 0));
+      lines.push('   Prezzo unitario: ' + formatCurrency(it.price || 0));
       const d = Number(it.discount);
-      const discTxt = (isFinite(d) && d > 0) ? ' -' + Math.round(d) + '%' : '';
-      lines.push('  Q.ta ' + (it.qty || 0) + ' × ' + formatCurrency(it.price || 0) + discTxt + ' = ' + formatCurrency(rowSubtotal(it)));
+      if (isFinite(d) && d > 0) lines.push('   Sconto: -' + Math.round(d) + '%');
+      lines.push('   Subtotale: ' + formatCurrency(rowSubtotal(it)));
+      lines.push('');
     });
 
-    lines.push('────────────────');
-    lines.push('');
-
-    // Totali
+    // Riepilogo totali
+    lines.push('Riepilogo:');
     if (showGlobal) {
       lines.push('Subtotale: ' + formatCurrency(t.afterRow));
       lines.push('Sconto globale: -' + formatCurrency(t.globalDisc));
@@ -1398,7 +1399,8 @@
     if (quote.notes && quote.notes.trim()) {
       lines.push('');
       lines.push('Note:');
-      lines.push(quote.notes);
+      const noteLines = quote.notes.split('\n').map(l => l.trim()).filter(l => l);
+      for (const line of noteLines) lines.push(line);
     }
 
     const text = lines.join('\n');
