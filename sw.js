@@ -7,7 +7,7 @@
  *   - assets statici           -> stale-while-revalidate
  * CACHE_NAME va bumpato a ogni deploy via ./bump-version.sh
  */
-const CACHE_NAME = 'listoapp-cache-v20260506T201706';
+const CACHE_NAME = 'listoapp-cache-v20260506T202658';
 const SHELL = [
   './',
   './index.html',
