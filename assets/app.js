@@ -1238,7 +1238,7 @@
       doc.text('Prezzo', colPrice, y, { align: 'right' });
       if (showSc) doc.text('Sc.%', colSc, y, { align: 'right' });
       doc.text('Subtot.', colSub - 2, y, { align: 'right' });
-      y += 8;
+      y += 16;
 
       // Righe articolo zebra
       doc.setFont('helvetica', 'normal');
