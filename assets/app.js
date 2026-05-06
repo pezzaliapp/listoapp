@@ -1433,6 +1433,52 @@
         body.classList.add('padded');
         body.appendChild(a);
       }
+      // Footer fisso: Chiudi (sx) + Condividi (dx). Web Share Level 2 con fallback download.
+      const modalEl = body.parentElement;
+      if (modalEl) {
+        const oldFooter = modalEl.querySelector(':scope > footer');
+        if (oldFooter) oldFooter.remove();
+        const footer = document.createElement('footer');
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button'; closeBtn.className = 'ghost';
+        closeBtn.id = 'promo-close-bottom'; closeBtn.textContent = 'Chiudi';
+        closeBtn.addEventListener('click', closeModal);
+        const shareBtn = document.createElement('button');
+        shareBtn.type = 'button'; shareBtn.className = 'primary';
+        shareBtn.id = 'promo-share'; shareBtn.textContent = 'Condividi';
+        shareBtn.addEventListener('click', async () => {
+          try {
+            let blob;
+            if (p.url && p.url.startsWith('data:')) {
+              blob = new Blob([dataUrlToUint8Array(p.url)], { type: p.fileMime || 'application/octet-stream' });
+            } else {
+              const r = await fetch(resolvedUrl);
+              blob = await r.blob();
+            }
+            const fname = p.fileName || 'promo';
+            const file = new File([blob], fname, { type: p.fileMime || blob.type });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: p.title || 'Promo', text: p.description || '' });
+            } else {
+              const dl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = dl; a.download = fname;
+              document.body.appendChild(a); a.click(); a.remove();
+              setTimeout(() => URL.revokeObjectURL(dl), 1000);
+            }
+          } catch (err) {
+            if (err && err.name === 'AbortError') return;
+            showToast('Condivisione fallita: ' + (err.message || err), 'error');
+          }
+        });
+        footer.appendChild(closeBtn);
+        footer.appendChild(shareBtn);
+        modalEl.appendChild(footer);
+      }
+    }, () => {
+      // cleanup eseguito da closeModal: rimuove il footer per non contaminare le prossime modali.
+      const f = document.querySelector('#modal .modal > footer');
+      if (f) f.remove();
     });
   }
 
