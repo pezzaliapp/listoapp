@@ -1339,40 +1339,84 @@
   function exportQuoteText() {
     if (!quote.items.length) { showToast('Preventivo vuoto.', 'warn'); return; }
     const t = quoteTotals();
-    const lines = ['*Preventivo ListoAPP*'];
-    if (quote.customer) lines.push('Cliente: ' + quote.customer);
+    const showGlobal = !!quotePdfOptions.showGlobalDiscount && t.globalDisc > 0;
+    const calcVAT = !!quotePdfOptions.calcVAT;
+    const vatPct = Number(quotePdfOptions.vatPercent) || 22;
+    const imponibile = t.afterRow - (showGlobal ? t.globalDisc : 0);
+    const vatVal = calcVAT ? (imponibile * vatPct / 100) : 0;
+    const grandTotal = imponibile + vatVal;
+    const dt = new Date().toLocaleDateString('it-IT');
+    const docNumber = (quote.number || '').trim();
+    const lines = [];
+
+    // Anagrafica venditore (se presente)
+    if (quoteHeader.text && quoteHeader.text.trim()) {
+      const vendorLines = quoteHeader.text.split('\n').slice(0, 8).filter(l => l.trim());
+      for (const line of vendorLines) lines.push(line);
+      lines.push('');
+    }
+
+    // Titolo preventivo
+    lines.push('*PREVENTIVO' + (docNumber ? ' n. ' + docNumber : '') + ' del ' + dt + '*');
+    lines.push('Validita: ' + (quote.validity || 30) + ' giorni');
     lines.push('');
+
+    // Cliente
+    if (quote.customer && quote.customer.trim()) {
+      lines.push('Cliente:');
+      const custLines = quote.customer.split('\n').slice(0, 8).filter(l => l.trim());
+      for (const line of custLines) lines.push(line);
+      lines.push('');
+    }
+
+    // Separator
+    lines.push('────────────────');
+
+    // Articoli
     quote.items.forEach((it) => {
-      lines.push('• ' + (it.code ? '[' + it.code + '] ' : '') + (it.name || '') +
-        ' — ' + it.qty + ' × ' + formatCurrency(it.price) +
-        (it.discount ? ' (-' + it.discount + '%)' : '') +
-        ' = ' + formatCurrency(rowSubtotal(it)));
+      const code = it.code ? '[' + it.code + '] ' : '';
+      const name = it.name || '';
+      lines.push('• ' + code + name);
+      const d = Number(it.discount);
+      const discTxt = (isFinite(d) && d > 0) ? ' -' + Math.round(d) + '%' : '';
+      lines.push('  Q.ta ' + (it.qty || 0) + ' × ' + formatCurrency(it.price || 0) + discTxt + ' = ' + formatCurrency(rowSubtotal(it)));
     });
+
+    lines.push('────────────────');
     lines.push('');
-    lines.push('Subtotale: ' + formatCurrency(t.sub));
-    if (t.rowDisc > 0) lines.push('Sconti riga: -' + formatCurrency(t.rowDisc));
-    if (t.globalDisc > 0) lines.push('Sconto globale: -' + formatCurrency(t.globalDisc));
-    lines.push('*TOTALE: ' + formatCurrency(t.grand) + '*');
-    if (quote.notes) { lines.push(''); lines.push('Note: ' + quote.notes); }
+
+    // Totali
+    if (showGlobal) {
+      lines.push('Subtotale: ' + formatCurrency(t.afterRow));
+      lines.push('Sconto globale: -' + formatCurrency(t.globalDisc));
+    }
+    lines.push('Imponibile: ' + formatCurrency(imponibile));
+    if (calcVAT) lines.push('IVA ' + vatPct + '%: ' + formatCurrency(vatVal));
+    lines.push('*TOTALE: ' + formatCurrency(grandTotal) + '*');
+
+    // Note
+    if (quote.notes && quote.notes.trim()) {
+      lines.push('');
+      lines.push('Note:');
+      lines.push(quote.notes);
+    }
+
     const text = lines.join('\n');
-    const tryClipboard = async () => {
+
+    // Clipboard primary, fallback wa.me
+    async function tryClipboard() {
       try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(text);
-          showToast('Testo copiato negli appunti.', 'success');
-          return true;
-        }
-      } catch (_) { /* fall through */ }
-      return false;
-    };
-    tryClipboard().then((ok) => {
-      if (ok) return;
-      const wa = 'https://wa.me/?text=' + encodeURIComponent(text);
-      const a = document.createElement('a');
-      a.href = wa; a.target = '_blank'; a.rel = 'noopener';
-      a.click();
-      showToast('Apro WhatsApp con il testo del preventivo.', 'success');
-    });
+        await navigator.clipboard.writeText(text);
+        showToast('Testo copiato negli appunti.', 'success');
+      } catch (_) {
+        const url = 'https://wa.me/?text=' + encodeURIComponent(text);
+        const a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        document.body.appendChild(a); a.click(); a.remove();
+        showToast('Apertura WhatsApp...', 'success');
+      }
+    }
+    tryClipboard();
   }
 
   // ────────────────────────────────────────────────
