@@ -70,7 +70,7 @@
     }[c]));
   }
 
-  const fmtCurrency = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' });
+  const fmtCurrency = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', useGrouping: 'always' });
   const fmtNumber = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 });
   function formatCurrency(n) {
     if (typeof n !== 'number' || !isFinite(n)) return fmtCurrency.format(0);
@@ -81,7 +81,7 @@
   // Evita problemi di rendering del glifo € su alcuni font/encoding di jspdf.
   function formatCurrencyPDF(n) {
     const num = Number(n) || 0;
-    return new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num) + ' EUR';
+    return new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }).format(num) + ' EUR';
   }
 
   function todayISO() {
