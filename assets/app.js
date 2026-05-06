@@ -1170,28 +1170,29 @@
         }
         y += 10;
       }
-      doc.setFontSize(11);
-      const subtotX = quotePdfOptions.showRowDiscount ? (M + 500) : (M + 460);
+      const tableFont = quotePdfOptions.showRowDiscount ? 9 : 11;
+      const rowFont = quotePdfOptions.showRowDiscount ? 8 : 10;
+      doc.setFontSize(tableFont);
       doc.text('Cod.', M, y);
       doc.text('Descrizione', M + 80, y);
-      doc.text('Q.tà', M + 320, y);
-      doc.text('Prezzo', M + 380, y);
-      if (quotePdfOptions.showRowDiscount) doc.text('Sc.%', M + 460, y);
-      doc.text('Subtot.', subtotX, y);
+      doc.text('Q.tà', M + 360, y, { align: 'right' });
+      doc.text('Prezzo', M + 440, y, { align: 'right' });
+      if (quotePdfOptions.showRowDiscount) doc.text('Sc.%', M + 490, y, { align: 'right' });
+      doc.text('Subtot.', 555, y, { align: 'right' });
       y += 6; doc.line(M, y, 555, y); y += 14;
-      doc.setFontSize(10);
+      doc.setFontSize(rowFont);
       quote.items.forEach((it) => {
         if (y > 760) { doc.addPage(); y = M; }
         doc.text(String(it.code || '').slice(0, 14), M, y);
         doc.text(String(it.name || '').slice(0, 40), M + 80, y);
-        doc.text(String(it.qty || 0), M + 320, y);
-        doc.text(formatCurrency(it.price || 0), M + 380, y);
+        doc.text(String(it.qty || 0), M + 360, y, { align: 'right' });
+        doc.text(formatCurrency(it.price || 0), M + 440, y, { align: 'right' });
         if (quotePdfOptions.showRowDiscount) {
           const d = Number(it.discount);
           const discText = (isFinite(d) && d > 0) ? Math.round(d) + '%' : '-';
-          doc.text(discText, M + 460, y);
+          doc.text(discText, M + 490, y, { align: 'right' });
         }
-        doc.text(formatCurrency(rowSubtotal(it)), subtotX, y);
+        doc.text(formatCurrency(rowSubtotal(it)), 555, y, { align: 'right' });
         y += 14;
       });
       const t = quoteTotals();
