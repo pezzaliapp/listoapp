@@ -1109,12 +1109,13 @@
         doc.text('Preventivo del ' + dt, M, y); y += 16;
         if (quote.customer) {
           doc.setFontSize(10);
+          const labelWidth = doc.getTextWidth('Cliente: ');
           const customerLines = quote.customer.split('\n').slice(0, 8);
           if (customerLines.length > 0) {
             doc.text('Cliente: ' + customerLines[0], M, y); y += 14;
             for (let i = 1; i < customerLines.length; i++) {
               if (customerLines[i].trim()) {
-                doc.text(customerLines[i], M + 50, y);
+                doc.text(customerLines[i], M + labelWidth, y);
                 y += 14;
               }
             }
@@ -1127,12 +1128,13 @@
         const dt = new Date().toLocaleString('it-IT');
         doc.text('Data: ' + dt, M, y); y += 14;
         if (quote.customer) {
+          const labelWidth = doc.getTextWidth('Cliente: ');
           const customerLines = quote.customer.split('\n').slice(0, 8);
           if (customerLines.length > 0) {
             doc.text('Cliente: ' + customerLines[0], M, y); y += 14;
             for (let i = 1; i < customerLines.length; i++) {
               if (customerLines[i].trim()) {
-                doc.text(customerLines[i], M + 50, y);
+                doc.text(customerLines[i], M + labelWidth, y);
                 y += 14;
               }
             }
