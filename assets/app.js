@@ -344,6 +344,7 @@
   const KEY_LISTINO_PDF = 'listino_pdf';
   const KEY_QUOTE_HEADER = 'quote_header';
   const KEY_QUOTE_PDF_OPTIONS = 'quote_pdf_options';
+  const KEY_QUOTE_COUNTER = 'quote_counter';
 
   // Stato in memoria del listino corrente
   let listino = null; // {kind: 'tabular'|'pdf', fileName, columns:[], rows:[], mapping:{code,name,price}}
@@ -687,7 +688,7 @@
   // 7. PREVENTIVO
   // ────────────────────────────────────────────────
   const QUOTE_KEY = 'listoapp_quote_v1';
-  let quote = { items: [], globalDiscount: 0, customer: '', notes: '' };
+  let quote = { items: [], globalDiscount: 0, customer: '', notes: '', number: '', validity: 30 };
 
   function loadQuote() {
     try {
@@ -697,6 +698,21 @@
   }
   function saveQuote() {
     try { localStorage.setItem(QUOTE_KEY, JSON.stringify(quote)); } catch (_) {}
+  }
+
+  // Counter progressivo del numero preventivo. Incrementato e ritornato come "YYYY-NNN".
+  // Da chiamare SOLO dal flusso export PDF (Patch B), non a ogni cambio del field.
+  async function nextQuoteNumber() {
+    let counter = 0;
+    try {
+      const saved = await idbGet(KEY_QUOTE_COUNTER);
+      if (typeof saved === 'number' && isFinite(saved) && saved >= 0) counter = saved;
+    } catch (_) {}
+    counter += 1;
+    try { await idbSet(KEY_QUOTE_COUNTER, counter); } catch (_) {}
+    const year = new Date().getFullYear();
+    const padded = String(counter).padStart(3, '0');
+    return year + '-' + padded;
   }
 
   function rowSubtotal(item) {
@@ -826,6 +842,8 @@
     const cust = $('#quote-customer'); if (cust) cust.value = quote.customer || '';
     const notes = $('#quote-notes'); if (notes) notes.value = quote.notes || '';
     const gd = $('#quote-global-discount'); if (gd) gd.value = String(quote.globalDiscount || 0);
+    const num = $('#quote-number'); if (num) num.value = quote.number || '';
+    const val = $('#quote-validity'); if (val) val.value = String(quote.validity || 30);
   }
 
   function bindQuoteEvents() {
@@ -934,6 +952,16 @@
     if (optRow) optRow.addEventListener('change', () => { quotePdfOptions.showRowDiscount = optRow.checked; saveQuotePdfOptions(); });
     const optGlobal = $('#opt-global-discount');
     if (optGlobal) optGlobal.addEventListener('change', () => { quotePdfOptions.showGlobalDiscount = optGlobal.checked; saveQuotePdfOptions(); });
+    const cv = $('#opt-calc-vat');
+    if (cv) cv.addEventListener('change', () => { quotePdfOptions.calcVAT = cv.checked; saveQuotePdfOptions(); });
+    const vp = $('#opt-vat-percent');
+    if (vp) vp.addEventListener('change', () => { quotePdfOptions.vatPercent = Number(vp.value) || 22; saveQuotePdfOptions(); });
+
+    // Numero preventivo + validita (persistenza in localStorage via saveQuote)
+    const num = $('#quote-number');
+    if (num) num.addEventListener('change', () => { quote.number = num.value; saveQuote(); });
+    const val = $('#quote-validity');
+    if (val) val.addEventListener('change', () => { quote.validity = Number(val.value) || 30; saveQuote(); });
   }
 
   function renderPreventivoCatalog() {
@@ -1048,12 +1076,12 @@
   }
 
   // Opzioni rendering PDF preventivo (checkbox accanto a Esporta PDF). Persistente in IDB.
-  let quotePdfOptions = { showRowDiscount: false, showGlobalDiscount: true, updatedAt: 0 };
+  let quotePdfOptions = { showRowDiscount: false, showGlobalDiscount: true, calcVAT: true, vatPercent: 22, updatedAt: 0 };
 
   async function loadQuotePdfOptions() {
     const saved = await idbGet(KEY_QUOTE_PDF_OPTIONS);
     if (saved && typeof saved === 'object') {
-      quotePdfOptions = Object.assign({ showRowDiscount: false, showGlobalDiscount: true, updatedAt: 0 }, saved);
+      quotePdfOptions = Object.assign({ showRowDiscount: false, showGlobalDiscount: true, calcVAT: true, vatPercent: 22, updatedAt: 0 }, saved);
     }
     applyQuotePdfOptionsToUI();
   }
@@ -1061,6 +1089,8 @@
   function applyQuotePdfOptionsToUI() {
     const c1 = $('#opt-row-discount'); if (c1) c1.checked = !!quotePdfOptions.showRowDiscount;
     const c2 = $('#opt-global-discount'); if (c2) c2.checked = !!quotePdfOptions.showGlobalDiscount;
+    const cv = $('#opt-calc-vat'); if (cv) cv.checked = !!quotePdfOptions.calcVAT;
+    const vp = $('#opt-vat-percent'); if (vp) vp.value = String(quotePdfOptions.vatPercent || 22);
   }
 
   async function saveQuotePdfOptions() {

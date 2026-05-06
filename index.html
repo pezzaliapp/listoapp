@@ -160,6 +160,25 @@
             <input type="number" id="quote-global-discount" min="0" max="100" step="0.5" value="0">
           </div>
         </div>
+        <div class="grid-2">
+          <div>
+            <label for="quote-number">Numero preventivo</label>
+            <input type="text" id="quote-number" placeholder="Auto" autocomplete="off">
+          </div>
+          <div>
+            <label for="quote-validity">Validita (giorni)</label>
+            <input type="number" id="quote-validity" min="1" max="365" step="1" value="30">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <label class="pdf-opt"><input type="checkbox" id="opt-calc-vat" checked> Calcola IVA nel PDF</label>
+          </div>
+          <div>
+            <label for="opt-vat-percent">IVA %</label>
+            <input type="number" id="opt-vat-percent" min="0" max="50" step="0.5" value="22">
+          </div>
+        </div>
 
         <h3>Catalogo</h3>
         <div class="search-row">
