@@ -1223,8 +1223,8 @@
       const colCod = M;
       const colDesc = M + 85;
       const colQty = M + 340;
-      const colPrice = showSc ? (M + 420) : (M + 460);
-      const colSc = M + 475;
+      const colPrice = showSc ? (M + 395) : (M + 460);
+      const colSc = M + 450;
       const colSub = PAGE_RIGHT;
 
       // Header tabella con sfondo grigio
