@@ -1222,16 +1222,16 @@
       const showSc = !!quotePdfOptions.showRowDiscount;
       const colCod = M;
       const colDesc = M + 85;
-      const colQty = M + 340;
-      const colPrice = showSc ? (M + 395) : (M + 460);
-      const colSc = M + 450;
+      const colQty = M + 310;
+      const colPrice = M + 395;
+      const colSc = M + 420;
       const colSub = PAGE_RIGHT;
 
       // Header tabella con sfondo grigio
       doc.setFillColor(230, 230, 230);
       doc.rect(M, y - 11, PAGE_RIGHT - M, 16, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(showSc ? 9 : 10);
+      doc.setFontSize(showSc ? 8 : 10);
       doc.text('Cod.', colCod + 2, y);
       doc.text('Descrizione', colDesc, y);
       doc.text('Q.ta', colQty, y, { align: 'right' });
@@ -1242,7 +1242,7 @@
 
       // Righe articolo zebra
       doc.setFont('helvetica', 'normal');
-      const rowFont = showSc ? 9 : 10;
+      const rowFont = showSc ? 8 : 10;
       const rowH = 14;
       doc.setFontSize(rowFont);
       quote.items.forEach((it, idx) => {
