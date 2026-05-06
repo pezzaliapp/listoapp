@@ -77,6 +77,13 @@
     return fmtCurrency.format(n);
   }
 
+  // Formattazione euro per il PDF: niente simbolo €, suffisso "EUR" testuale.
+  // Evita problemi di rendering del glifo € su alcuni font/encoding di jspdf.
+  function formatCurrencyPDF(n) {
+    const num = Number(n) || 0;
+    return new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num) + ' EUR';
+  }
+
   function todayISO() {
     // Data LOCALE dell'utente in YYYY-MM-DD. Niente toISOString() qui:
     // restituirebbe la data UTC e in fusi >0 nelle prime ore della notte
@@ -1129,123 +1136,202 @@
       await loadVendor('jspdf');
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-      const M = 40; let y = M;
-      if (quoteHeader.text || quoteHeader.logoDataUrl) {
-        // Layout custom: logo sinistra (aspect ratio preservato), anagrafica destra centrata.
-        const headerY = M;
-        const MAX_LOGO_W = 100, MAX_LOGO_H = 60;
-        let drawW = 0, drawH = 0;
-        if (quoteHeader.logoDataUrl) {
-          const lw = quoteHeader.logoWidth || 200;
-          const lh = quoteHeader.logoHeight || 200;
-          const scale = Math.min(MAX_LOGO_W / lw, MAX_LOGO_H / lh, 1);
-          drawW = Math.round(lw * scale);
-          drawH = Math.round(lh * scale);
-          try {
-            const fmt = (quoteHeader.logoMime === 'image/png') ? 'PNG' : 'JPEG';
-            doc.addImage(quoteHeader.logoDataUrl, fmt, M, headerY, drawW, drawH);
-          } catch (_) { /* ignore */ }
-        }
-        let textBottom = headerY;
-        if (quoteHeader.text) {
-          doc.setFontSize(10);
-          const lines = quoteHeader.text.split('\n').slice(0, 8);
-          const textX = quoteHeader.logoDataUrl ? M + drawW + 16 : M;
-          let textY = headerY + 10;  // sempre top-aligned, niente centratura
-          for (const line of lines) {
-            doc.text(line, textX, textY);
-            textY += 12;
-          }
-          textBottom = textY;
-        }
-        y = Math.max(headerY + drawH, textBottom) + 16;
-        doc.setLineWidth(0.5);
-        doc.line(M, y, 555, y);
-        y += 16;
-        doc.setFontSize(12);
-        const dt = new Date().toLocaleString('it-IT');
-        doc.text('Preventivo del ' + dt, M, y); y += 16;
-        if (quote.customer) {
-          doc.setFontSize(10);
-          const labelWidth = doc.getTextWidth('Cliente: ');
-          const customerLines = quote.customer.split('\n').slice(0, 8);
-          if (customerLines.length > 0) {
-            doc.text('Cliente: ' + customerLines[0], M, y); y += 14;
-            for (let i = 1; i < customerLines.length; i++) {
-              if (customerLines[i].trim()) {
-                doc.text(customerLines[i], M + labelWidth, y);
-                y += 14;
-              }
-            }
-          }
-        }
-        y += 8;
-      } else {
-        doc.setFontSize(16); doc.text('Preventivo ListoAPP', M, y); y += 22;
-        doc.setFontSize(10);
-        const dt = new Date().toLocaleString('it-IT');
-        doc.text('Data: ' + dt, M, y); y += 14;
-        if (quote.customer) {
-          const labelWidth = doc.getTextWidth('Cliente: ');
-          const customerLines = quote.customer.split('\n').slice(0, 8);
-          if (customerLines.length > 0) {
-            doc.text('Cliente: ' + customerLines[0], M, y); y += 14;
-            for (let i = 1; i < customerLines.length; i++) {
-              if (customerLines[i].trim()) {
-                doc.text(customerLines[i], M + labelWidth, y);
-                y += 14;
-              }
-            }
-          }
-        }
-        y += 10;
+      const M = 40;
+      const PAGE_RIGHT = 555;
+      let y = M;
+
+      // ============ NUMERO PROGRESSIVO ============
+      let docNumber = (quote.number || '').trim();
+      if (!docNumber) {
+        try { docNumber = await nextQuoteNumber(); quote.number = docNumber; saveQuote(); } catch (_) { docNumber = ''; }
       }
-      doc.setFontSize(11);
-      const subtotX = quotePdfOptions.showRowDiscount ? (M + 500) : (M + 460);
-      doc.text('Cod.', M, y);
-      doc.text('Descrizione', M + 80, y);
-      doc.text('Q.tà', M + 320, y, { align: 'right' });
-      doc.text('Prezzo', M + 380, y, { align: 'right' });
-      if (quotePdfOptions.showRowDiscount) doc.text('Sc.%', M + 460, y, { align: 'right' });
-      doc.text('Subtot.', subtotX, y, { align: 'right' });
-      y += 6; doc.line(M, y, 555, y); y += 14;
+      const numEl = $('#quote-number'); if (numEl) numEl.value = docNumber;
+
+      // ============ HEADER (logo + anagrafica venditore) ============
+      const hasLogo = !!quoteHeader.logoDataUrl;
+      const hasText = !!(quoteHeader.text && quoteHeader.text.trim());
+      let drawW = 0, drawH = 0;
+      if (hasLogo) {
+        const lw = quoteHeader.logoWidth || 200;
+        const lh = quoteHeader.logoHeight || 200;
+        const scale = Math.min(100 / lw, 60 / lh, 1);
+        drawW = Math.round(lw * scale);
+        drawH = Math.round(lh * scale);
+        try {
+          const fmt = (quoteHeader.logoMime === 'image/png') ? 'PNG' : 'JPEG';
+          doc.addImage(quoteHeader.logoDataUrl, fmt, M, y, drawW, drawH);
+        } catch (_) {}
+      }
+      let textBottom = y;
+      if (hasText) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const lines = quoteHeader.text.split('\n').slice(0, 8);
+        const textX = hasLogo ? M + drawW + 16 : M;
+        let textY = y + 10;
+        for (const line of lines) {
+          doc.text(line, textX, textY);
+          textY += 12;
+        }
+        textBottom = textY;
+      }
+      if (hasLogo || hasText) {
+        y = Math.max(y + drawH, textBottom) + 12;
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(180, 180, 180);
+        doc.line(M, y, PAGE_RIGHT, y);
+        y += 16;
+      }
+
+      // ============ INTESTAZIONE PREVENTIVO ============
+      const dt = new Date();
+      const dtStr = dt.toLocaleDateString('it-IT');
+      const titleY = y;
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      const titleText = 'Preventivo' + (docNumber ? ' n. ' + docNumber : '') + ' del ' + dtStr;
+      doc.text(titleText, M, titleY);
       doc.setFontSize(10);
-      quote.items.forEach((it) => {
-        if (y > 760) { doc.addPage(); y = M; }
-        doc.text(String(it.code || '').slice(0, 14), M, y);
-        doc.text(String(it.name || '').slice(0, 40), M + 80, y);
-        doc.text(String(it.qty || 0), M + 320, y, { align: 'right' });
-        doc.text(formatCurrency(it.price || 0), M + 380, y, { align: 'right' });
-        if (quotePdfOptions.showRowDiscount) {
+      doc.setFont('helvetica', 'normal');
+      doc.text('Validita: ' + (quote.validity || 30) + ' giorni', M, titleY + 16);
+
+      // Box SPETT.LE a destra
+      const spettX = 350;
+      const spettW = PAGE_RIGHT - spettX;
+      const customerLines = (quote.customer || '').split('\n').slice(0, 6).filter(l => l.trim());
+      const spettLineH = 12;
+      const spettH = 14 + Math.max(customerLines.length, 1) * spettLineH + 8;
+      doc.setDrawColor(150, 150, 150);
+      doc.setLineWidth(0.5);
+      doc.rect(spettX, titleY - 12, spettW, spettH, 'S');
+      doc.setFillColor(240, 240, 240);
+      doc.rect(spettX, titleY - 12, spettW, 14, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('SPETT.LE', spettX + 6, titleY - 2);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      let spettTextY = titleY + 8;
+      for (const line of (customerLines.length ? customerLines : ['—'])) {
+        doc.text(line, spettX + 6, spettTextY);
+        spettTextY += spettLineH;
+      }
+      y = Math.max(titleY + 32, titleY - 12 + spettH) + 16;
+
+      // ============ TABELLA ARTICOLI ============
+      const showSc = !!quotePdfOptions.showRowDiscount;
+      const colCod = M;
+      const colDesc = M + 85;
+      const colQty = M + 340;
+      const colPrice = showSc ? (M + 420) : (M + 460);
+      const colSc = M + 475;
+      const colSub = PAGE_RIGHT;
+
+      // Header tabella con sfondo grigio
+      doc.setFillColor(230, 230, 230);
+      doc.rect(M, y - 11, PAGE_RIGHT - M, 16, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(showSc ? 9 : 10);
+      doc.text('Cod.', colCod + 2, y);
+      doc.text('Descrizione', colDesc, y);
+      doc.text('Q.ta', colQty, y, { align: 'right' });
+      doc.text('Prezzo', colPrice, y, { align: 'right' });
+      if (showSc) doc.text('Sc.%', colSc, y, { align: 'right' });
+      doc.text('Subtot.', colSub - 2, y, { align: 'right' });
+      y += 8;
+
+      // Righe articolo zebra
+      doc.setFont('helvetica', 'normal');
+      const rowFont = showSc ? 9 : 10;
+      const rowH = 14;
+      doc.setFontSize(rowFont);
+      quote.items.forEach((it, idx) => {
+        if (y > 720) { doc.addPage(); y = M + 20; }
+        if (idx % 2 === 0) {
+          doc.setFillColor(248, 248, 248);
+          doc.rect(M, y - 10, PAGE_RIGHT - M, rowH, 'F');
+        }
+        doc.text(String(it.code || '').slice(0, 14), colCod + 2, y);
+        doc.text(String(it.name || '').slice(0, 38), colDesc, y);
+        doc.text(String(it.qty || 0), colQty, y, { align: 'right' });
+        doc.text(formatCurrencyPDF(it.price || 0), colPrice, y, { align: 'right' });
+        if (showSc) {
           const d = Number(it.discount);
           const discText = (isFinite(d) && d > 0) ? Math.round(d) + '%' : '-';
-          doc.text(discText, M + 460, y, { align: 'right' });
+          doc.text(discText, colSc, y, { align: 'right' });
         }
-        doc.text(formatCurrency(rowSubtotal(it)), subtotX, y, { align: 'right' });
-        y += 14;
+        doc.text(formatCurrencyPDF(rowSubtotal(it)), colSub - 2, y, { align: 'right' });
+        y += rowH;
       });
+      y += 10;
+
+      // ============ BOX TOTALI ============
       const t = quoteTotals();
-      y += 10; doc.line(M, y, 555, y); y += 16;
-      doc.setFontSize(11);
-      doc.text('Subtotale: ' + formatCurrency(t.sub), M + 320, y); y += 14;
-      doc.text('Sconti riga: -' + formatCurrency(t.rowDisc), M + 320, y); y += 14;
-      if (quotePdfOptions.showGlobalDiscount) {
-        doc.text('Sconto globale: -' + formatCurrency(t.globalDisc), M + 320, y); y += 14;
+      const showGlobal = !!quotePdfOptions.showGlobalDiscount;
+      const calcVAT = !!quotePdfOptions.calcVAT;
+      const vatPct = Number(quotePdfOptions.vatPercent) || 22;
+      const imponibile = t.afterRow;
+      const netto = imponibile - (showGlobal ? t.globalDisc : 0);
+      const vatVal = calcVAT ? (netto * vatPct / 100) : 0;
+      const grandTotal = netto + vatVal;
+
+      const totalsX = 350;
+      const totalsW = PAGE_RIGHT - totalsX;
+      const totalsLines = [];
+      totalsLines.push(['Imponibile', formatCurrencyPDF(imponibile), false]);
+      if (showGlobal) totalsLines.push(['Sconto globale', '-' + formatCurrencyPDF(t.globalDisc), false]);
+      totalsLines.push(['Netto', formatCurrencyPDF(netto), false]);
+      if (calcVAT) totalsLines.push(['IVA ' + vatPct + '%', formatCurrencyPDF(vatVal), false]);
+      totalsLines.push(['TOTALE', formatCurrencyPDF(grandTotal), true]);
+
+      const totalsLineH = 16;
+      const totalsH = totalsLines.length * totalsLineH + 8;
+      doc.setDrawColor(120, 120, 120);
+      doc.setLineWidth(0.6);
+      doc.rect(totalsX, y, totalsW, totalsH, 'S');
+      let tY = y + totalsLineH;
+      for (const [label, val, isBold] of totalsLines) {
+        doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+        doc.setFontSize(isBold ? 11 : 10);
+        doc.text(label, totalsX + 6, tY);
+        doc.text(val, totalsX + totalsW - 6, tY, { align: 'right' });
+        tY += totalsLineH;
       }
-      doc.setFontSize(13);
-      doc.text('TOTALE: ' + formatCurrency(t.grand), M + 320, y); y += 18;
-      if (quote.notes) {
-        y += 12; doc.setFontSize(10);
-        doc.text('Note:', M, y); y += 12;
-        const lines = doc.splitTextToSize(quote.notes, 515);
-        doc.text(lines, M, y);
+      y += totalsH + 16;
+
+      // ============ NOTE ============
+      if (quote.notes && quote.notes.trim()) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Note:', M, y); y += 14;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        const notesLines = doc.splitTextToSize(quote.notes, PAGE_RIGHT - M);
+        for (const line of notesLines) {
+          if (y > 800) { doc.addPage(); y = M; }
+          doc.text(line, M, y);
+          y += 12;
+        }
       }
-      const fname = 'preventivo_' + todayISO() + '.pdf';
+
+      // ============ FOOTER su tutte le pagine ============
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text('ListoAPP', M, 825);
+        doc.text('Pag. ' + p + '/' + totalPages, PAGE_RIGHT, 825, { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+      }
+
+      const fname = 'preventivo_' + dt.toISOString().slice(0, 10) + '.pdf';
       doc.save(fname);
-      showToast('PDF generato: ' + fname, 'success');
+      showToast('Preventivo esportato.', 'success');
     } catch (err) {
-      console.error(err);
-      showToast('Export PDF fallito: ' + (err.message || err), 'error');
+      console.error('PDF export error:', err);
+      showToast('Errore esportazione PDF.', 'error');
     }
   }
 
