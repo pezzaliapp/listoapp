@@ -1267,20 +1267,21 @@
 
       // ============ BOX TOTALI ============
       const t = quoteTotals();
-      const showGlobal = !!quotePdfOptions.showGlobalDiscount;
+      const showGlobal = !!quotePdfOptions.showGlobalDiscount && t.globalDisc > 0;
       const calcVAT = !!quotePdfOptions.calcVAT;
       const vatPct = Number(quotePdfOptions.vatPercent) || 22;
-      const imponibile = t.afterRow;
-      const netto = imponibile - (showGlobal ? t.globalDisc : 0);
-      const vatVal = calcVAT ? (netto * vatPct / 100) : 0;
-      const grandTotal = netto + vatVal;
+      const imponibile = t.afterRow - (showGlobal ? t.globalDisc : 0);
+      const vatVal = calcVAT ? (imponibile * vatPct / 100) : 0;
+      const grandTotal = imponibile + vatVal;
 
       const totalsX = 350;
       const totalsW = PAGE_RIGHT - totalsX;
       const totalsLines = [];
+      if (showGlobal) {
+        totalsLines.push(['Subtotale', formatCurrencyPDF(t.afterRow), false]);
+        totalsLines.push(['Sconto globale', '-' + formatCurrencyPDF(t.globalDisc), false]);
+      }
       totalsLines.push(['Imponibile', formatCurrencyPDF(imponibile), false]);
-      if (showGlobal) totalsLines.push(['Sconto globale', '-' + formatCurrencyPDF(t.globalDisc), false]);
-      totalsLines.push(['Netto', formatCurrencyPDF(netto), false]);
       if (calcVAT) totalsLines.push(['IVA ' + vatPct + '%', formatCurrencyPDF(vatVal), false]);
       totalsLines.push(['TOTALE', formatCurrencyPDF(grandTotal), true]);
 
