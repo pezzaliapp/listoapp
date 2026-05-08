@@ -1,44 +1,16 @@
 [
   {
-    "id": "p_mox4gxdg_75vaze",
-    "title": "pluto",
+    "id": "p_mox4jscm_wl9w3x",
+    "title": "b224",
     "description": "",
-    "url": "promo/IMG_7999.PNG",
-    "type": "image",
-    "fileName": "IMG_7999.PNG",
-    "fileMime": "image/png",
-    "fileSize": 4089332,
+    "url": "promo/al_55_mod.pdf",
+    "type": "pdf",
+    "fileName": "al 55 mod.pdf",
+    "fileMime": "application/pdf",
+    "fileSize": 2595859,
     "startsAt": "2026-05-08",
     "expiresAt": "",
     "active": true,
-    "createdAt": "2026-05-08T16:21:18.196Z"
-  },
-  {
-    "id": "p_mox33s37_lvqcna",
-    "title": "pippo",
-    "description": "",
-    "url": "promo/IMG_7999.PNG",
-    "type": "image",
-    "fileName": "IMG_7999.PNG",
-    "fileMime": "image/png",
-    "fileSize": 4089332,
-    "startsAt": "2026-05-08",
-    "expiresAt": "2026-07-05",
-    "active": true,
-    "createdAt": "2026-05-08T15:43:05.203Z"
-  },
-  {
-    "id": "p_mosvc2am_d4uwra",
-    "title": "GEO 25 ",
-    "description": "ASSETTO 3D TABLET ",
-    "url": "promo/GEO_25_VUOTOPROMO.jpg",
-    "type": "image",
-    "fileName": "GEO 25 VUOTOPROMO.jpg",
-    "fileMime": "image/jpeg",
-    "fileSize": 148006,
-    "startsAt": "2026-05-05",
-    "expiresAt": "",
-    "active": true,
-    "createdAt": "2026-05-05T16:54:30.046Z"
+    "createdAt": "2026-05-08T16:23:31.654Z"
   }
 ]
